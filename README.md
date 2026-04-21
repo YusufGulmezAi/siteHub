@@ -119,14 +119,18 @@ sitehub/
 - **PowerShell 7+** (Windows'ta yerleşik, macOS/Linux'ta: `brew install powershell` / `apt install powershell`)
 - Bir IDE: Visual Studio 2026 / JetBrains Rider / VS Code + C# Dev Kit
 
-### Kurulum — 2 Adım
+### Kurulum — 3 Adım
 
 ```bash
 # 1. Repo'yu klonla
 git clone <repo-url> sitehub
 cd sitehub
 
-# 2. İlk kurulum (Docker başlat + migration'ları uygula)
+# 2. .env dosyasını hazırla (şifreler burada tutulur, git'e commit EDİLMEZ)
+cp .env.example .env
+# Windows PowerShell:  Copy-Item .env.example .env
+
+# 3. İlk kurulum (Docker başlat + migration'ları uygula)
 # Windows:
 scripts\dev-infra.cmd setup
 
@@ -134,12 +138,22 @@ scripts\dev-infra.cmd setup
 ./scripts/dev-infra.sh setup
 ```
 
+> **Windows PowerShell'de dotnet run için .env yükleme:**
+> `appsettings.Development.json` **artık connection string içermiyor** — tüm credential'lar `.env`'den gelir. Her yeni PowerShell oturumunda uygulamayı çalıştırmadan önce env'i yüklemeli:
+>
+> ```powershell
+> .\env.ps1   # Script env var'ları process-level set eder — dot-source gerekmez
+> dotnet run --project src/SiteHub.ManagementPortal
+> ```
+>
+> Env'in yüklendiğini doğrulamak için: `echo $env:ConnectionStrings__Postgres`. Execution policy hatası alırsan: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force`.
+
 > **Windows'ta ilk kez çalıştırıyorsanız:** PowerShell script'leri güvenlik nedeniyle
 > engelli olabilir. Detaylı çözüm: `scripts/README.md` içinde "Windows Kullanıcıları"
 > bölümüne bakın. Kısaca: `Get-ChildItem -Path . -Recurse -File | Unblock-File` ve
 > `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force`.
 
-Bu komut şunu yapar:
+Kurulum komutu şunu yapar:
 - `.env` yoksa `.env.example`'dan oluşturur (dev şifreleri güvenli default)
 - Docker compose ile PostgreSQL, Redis, Seq, MailHog, MinIO başlatır
 - PostgreSQL hazır olana kadar bekler
@@ -147,9 +161,11 @@ Bu komut şunu yapar:
 
 Sonra uygulamayı çalıştır:
 
-```bash
-dotnet run --project src/SiteHub.ManagementPortal    # https://localhost:5001
-dotnet run --project src/SiteHub.ResidentPortal      # https://localhost:5101
+```powershell
+# Windows PowerShell
+.\env.ps1
+dotnet run --project src/SiteHub.ManagementPortal    # http://localhost:5000
+dotnet run --project src/SiteHub.ResidentPortal      # http://localhost:5100
 ```
 
 ### Günlük Kullanım

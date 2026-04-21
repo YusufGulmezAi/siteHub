@@ -1,11 +1,18 @@
 @page "/"
 @rendermode InteractiveServer
+@inject SiteHub.Application.Abstractions.Context.ICurrentUser CurrentUser
 
 <PageTitle>Dashboard — SiteHub</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-1" Style="font-weight:600">Dashboard</MudText>
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-weight:600">
+    Hoş geldin, @(CurrentUser.FullName?.Split(' ').FirstOrDefault() ?? "Misafir")
+</MudText>
 <MudText Typo="Typo.body2" Class="mb-6" Style="color:#6B7280">
-    SiteHub Management Portal — Walking Skeleton
+    SiteHub Management Portal —
+    @if (CurrentUser.IsAuthenticated)
+    {
+        <span>@CurrentUser.MembershipCount üyelik, bağlı: @CurrentUser.Email</span>
+    }
 </MudText>
 
 @* ─── Stat Card'lar (AdminLTE small-box tarzı) ─── *@

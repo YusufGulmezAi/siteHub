@@ -5,6 +5,8 @@
 html, body {
     font-family: 'Inter', 'Roboto', Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: 0;
 }
 
 /* ─── Layout ────────────────────────────────────────────────── */

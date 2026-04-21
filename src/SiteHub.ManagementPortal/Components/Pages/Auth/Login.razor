@@ -1,0 +1,169 @@
+@page "/login"
+@layout AuthLayout
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Giriş — SiteHub</PageTitle>
+
+<div class="login-grid">
+
+    @* Sol panel — gradient + marka hikayesi *@
+    <aside class="brand-pane">
+
+        <div class="brand-logo">
+            <div class="logo-mark">S</div>
+            <span class="logo-text">SiteHub</span>
+        </div>
+
+        <div class="brand-copy">
+            <p class="eyebrow">Mutlu yaşam</p>
+            <h1 class="headline">Komşuluğun kolay yolu, yönetimin profesyonel hâli</h1>
+            <p class="sub">
+                Aidatından toplantısına, talebinden bakım planına —
+                sitenin tüm yaşamı tek yerde, huzurla.
+            </p>
+        </div>
+
+        <div class="brand-stats">
+            <div class="stat">
+                <div class="stat-value">1.200+</div>
+                <div class="stat-label">yönetilen site</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">48K</div>
+                <div class="stat-label">mutlu sakin</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">%99.9</div>
+                <div class="stat-label">erişilebilirlik</div>
+            </div>
+        </div>
+    </aside>
+
+    @* Sağ panel — form *@
+    <section class="form-pane">
+
+        <div class="form-container">
+            <header class="form-header">
+                <h2>Hoş geldiniz</h2>
+                <p>Hesabınıza giriş yapın</p>
+            </header>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert-error">
+                    @_errorMessage
+                </div>
+            }
+
+            <form @onsubmit="HandleLogin" @onsubmit:preventDefault autocomplete="off">
+
+                <div class="field">
+                    <label for="input">Kullanıcı bilgisi</label>
+                    <input id="input"
+                           type="text"
+                           autocomplete="off"
+                           spellcheck="false"
+                           autocapitalize="off"
+                           placeholder="TCKN, e-posta, telefon veya VKN"
+                           @bind="_input"
+                           disabled="@_isSubmitting" />
+                </div>
+
+                <div class="field">
+                    <div class="field-head">
+                        <label for="password">Parola</label>
+                        <a href="/forgot-password" tabindex="-1">Şifremi unuttum</a>
+                    </div>
+                    <input id="password"
+                           type="password"
+                           autocomplete="new-password"
+                           placeholder="••••••••"
+                           @bind="_password"
+                           disabled="@_isSubmitting" />
+                </div>
+
+                <button type="submit" class="submit-btn" disabled="@_isSubmitting">
+                    @if (_isSubmitting)
+                    {
+                        <span class="spinner"></span>
+                        <span>Giriş yapılıyor…</span>
+                    }
+                    else
+                    {
+                        <span>Giriş yap</span>
+                    }
+                </button>
+
+            </form>
+
+            <div class="form-footer">
+                Giriş yaparak
+                <a href="/terms">Kullanım Koşulları</a> ve
+                <a href="/privacy">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.
+            </div>
+        </div>
+
+    </section>
+</div>
+
+@code {
+    private string _input = "";
+    private string _password = "";
+    private string? _errorMessage;
+    private bool _isSubmitting;
+
+    protected override void OnInitialized()
+    {
+        // Login sayfas\u0131nda MudBlazor Snackbar vs. cookie'ye eri\u015fim gerekmez.
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(_input) || string.IsNullOrWhiteSpace(_password))
+        {
+            _errorMessage = "Kullanıcı bilgisi ve parola zorunludur.";
+            return;
+        }
+
+        _errorMessage = null;
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Blazor Server circuit Cookie set edemez — bu y\u00fczden /auth/login endpoint'ine
+            // browser fetch ile POST ediyoruz. Endpoint cookie'yi d\u00f6n\u00fcyor, tarayici saklar.
+            // Sonras\u0131nda window.location.href = "/" ile home'a redirect → yeni request
+            // cookie'li olacak, middleware session'\u0131 y\u00fckleyecek.
+
+            var result = await JS.InvokeAsync<LoginJsResult>(
+                "sitehubAuth.login",
+                _input.Trim(),
+                _password);
+
+            if (result.Success)
+            {
+                // Sayfay\u0131 tam yenile — Blazor circuit kapan\u0131r, yeni request cookie'li gelir.
+                Nav.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                _errorMessage = result.Message ?? "Giriş yapılamadı.";
+                _password = ""; // Yanl\u0131\u015f parolay\u0131 temizle
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.";
+            Console.Error.WriteLine(ex);
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed record LoginJsResult(bool Success, string? Message);
+}

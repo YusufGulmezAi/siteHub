@@ -1,6 +1,8 @@
 @* MainLayout.razor — AdminLTE-inspired dark sidebar layout *@
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject SiteHub.Application.Abstractions.Context.ICurrentUser CurrentUser
 
 <MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
 <MudPopoverProvider />
@@ -34,20 +36,58 @@
                 OnClick="@(() => _isDarkMode = !_isDarkMode)" />
         </MudTooltip>
 
-        <MudMenu
-            AnchorOrigin="Origin.BottomRight"
-            TransformOrigin="Origin.TopRight"
-            ActivationEvent="@MouseEvent.LeftClick">
-            <ActivatorContent>
-                <MudAvatar Color="Color.Primary" Size="Size.Small" Class="ml-2">AY</MudAvatar>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem Icon="@Icons.Material.Filled.Person">Profilim</MudMenuItem>
-                <MudMenuItem Icon="@Icons.Material.Filled.Security">Güvenlik (2FA)</MudMenuItem>
+        @* Avatar + manuel dropdown (MudMenu yerine MudPopover — v9'da MudMenu Blazor Server'da sorunlu) *@
+        <div class="user-menu-wrapper">
+            <MudAvatar Color="Color.Primary"
+                       Size="Size.Small"
+                       Class="ml-2 user-menu-activator"
+                       @onclick="ToggleUserMenu">@CurrentUser.Initials</MudAvatar>
+
+            <MudPopover Open="@_userMenuOpen"
+                        AnchorOrigin="Origin.BottomRight"
+                        TransformOrigin="Origin.TopRight"
+                        Paper="true"
+                        Class="user-menu-popover mt-2">
+                <div class="user-menu-header">
+                    <MudAvatar Color="Color.Primary" Size="Size.Medium">@CurrentUser.Initials</MudAvatar>
+                    <div class="user-menu-header-info">
+                        <div class="user-menu-name">@(CurrentUser.FullName ?? "Misafir")</div>
+                        <div class="user-menu-email">@(CurrentUser.Email ?? "-")</div>
+                    </div>
+                </div>
+
                 <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Filled.Logout">Çıkış Yap</MudMenuItem>
-            </ChildContent>
-        </MudMenu>
+
+                <div class="user-menu-items">
+                    <button class="user-menu-item" @onclick="CloseUserMenu">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                        <span>Profilim</span>
+                    </button>
+                    <button class="user-menu-item" @onclick="CloseUserMenu">
+                        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Small" />
+                        <span>Güvenlik (2FA)</span>
+                    </button>
+                </div>
+
+                <MudDivider />
+
+                <div class="user-menu-items">
+                    <button class="user-menu-item user-menu-item-danger" @onclick="HandleLogout">
+                        <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />
+                        <span>Çıkış Yap</span>
+                    </button>
+                </div>
+            </MudPopover>
+        </div>
+
+        @* Menu d\u0131\u015f\u0131na t\u0131klan\u0131nca kapans\u0131n *@
+        @if (_userMenuOpen)
+        {
+            <MudOverlay Visible="true"
+                        OnClick="CloseUserMenu"
+                        ZIndex="1200"
+                        DarkBackground="false" />
+        }
     </MudAppBar>
 
     @* ─── LEFT DRAWER (koyu sidebar, AdminLTE tarzı) ─────────── *@
@@ -86,6 +126,7 @@
 @code {
     private bool _drawerOpen = true;
     private bool _isDarkMode;
+    private bool _userMenuOpen;  // Avatar dropdown state
 
     // AdminLTE 4 renk paleti: koyu sidebar + açık içerik
     private readonly MudTheme _theme = new()
@@ -122,10 +163,43 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
+    private void ToggleUserMenu() => _userMenuOpen = !_userMenuOpen;
+
+    private void CloseUserMenu() => _userMenuOpen = false;
+
+    protected override void OnInitialized()
+    {
+        // Unauthenticated kullan\u0131c\u0131y\u0131 login'e yönlendir.
+        // Normalde SessionValidationMiddleware bunu yap\u0131yor, ama ilk render'da
+        // henüz middleware devreye girmemi\u015f olabilir — bu ikincil bir koruma.
+        if (!CurrentUser.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login", forceLoad: false);
+        }
+    }
+
     private void OnContextChanged(Services.Contexts.ContextItem ctx)
     {
         // İleride: URL'yi /c/{type}/{id}/... yap, menüleri permission'a göre yenile,
         // active context state'i güncelle, ilgili dashboard'a git.
         Nav.NavigateTo("/", forceLoad: false);
+    }
+
+    private async Task HandleLogout()
+    {
+        _userMenuOpen = false;
+
+        // /auth/logout endpoint'ini fetch ile çağır — session Redis'ten silinir,
+        // cookie'ler sunucu tarafından silinir. Sonrasında login sayfasına tam redirect.
+        try
+        {
+            await JS.InvokeVoidAsync("sitehubAuth.logout");
+        }
+        catch
+        {
+            // Logout best-effort — hata olsa bile login'e yönlendir.
+        }
+
+        Nav.NavigateTo("/login", forceLoad: true);
     }
 }

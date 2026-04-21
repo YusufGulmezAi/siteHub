@@ -1,0 +1,29 @@
+@* 
+    AuthLayout — login, register, forgot-password sayfalar\u0131 i\u00e7in minimal layout.
+    MainLayout'\u0131n aksine sidebar, header, navigasyon YOK. 
+    Sadece tam ekran i\u00e7eri\u011fe izin verir (gradient + form).
+*@
+@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="auth-layout">
+    @Body
+</div>
+
+<style>
+    .auth-layout {
+        min-height: 100vh;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* MainLayout.razor.css ile \u00e7at\u0131\u015ft\u0131\u011f\u0131 i\u00e7in baz\u0131 override'lar: */
+    ::deep .mud-layout {
+        min-height: auto;
+    }
+</style>

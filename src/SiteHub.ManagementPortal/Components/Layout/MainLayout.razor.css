@@ -1,0 +1,128 @@
+/* ==========================================================================
+   Kullan\u0131c\u0131 men\u00fcs\u00fc (avatar dropdown) — MainLayout scoped styles
+   ========================================================================== */
+
+.user-menu-wrapper {
+    position: relative;
+}
+
+.user-menu-activator {
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.user-menu-activator:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+::deep .user-menu-popover .mud-paper {
+    min-width: 240px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    animation: menuFadeIn 0.12s ease-out;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ======= Header (avatar + ad/email) =================================== */
+
+.user-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%);
+}
+
+.user-menu-header-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-menu-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-menu-email {
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ======= Menu items ==================================================== */
+
+.user-menu-items {
+    padding: 6px 0;
+}
+
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    color: #374151;
+    text-align: left;
+    transition: background 0.08s ease, color 0.08s ease;
+}
+
+.user-menu-item:hover {
+    background: #F3F4F6;
+    color: #111827;
+}
+
+.user-menu-item:active {
+    background: #E5E7EB;
+}
+
+.user-menu-item ::deep .mud-icon-root {
+    color: #6B7280;
+    transition: color 0.08s ease;
+}
+
+.user-menu-item:hover ::deep .mud-icon-root {
+    color: #374151;
+}
+
+/* ======= Danger variant (\u00c7\u0131k\u0131\u015f Yap) ==================================== */
+
+.user-menu-item-danger {
+    color: #DC2626;
+}
+
+.user-menu-item-danger ::deep .mud-icon-root {
+    color: #DC2626;
+}
+
+.user-menu-item-danger:hover {
+    background: #FEF2F2;
+    color: #B91C1C;
+}
+
+.user-menu-item-danger:hover ::deep .mud-icon-root {
+    color: #B91C1C;
+}

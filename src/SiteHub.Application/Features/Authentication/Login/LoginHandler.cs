@@ -170,6 +170,8 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         var session = Session.Create(
             loginAccountId: account.Id,
             personId: person.Id,
+            fullName: person.FullName,
+            email: account.LoginEmail,
             deviceId: deviceId,
             ipAddress: command.ClientContext.IpAddress,
             userAgent: command.ClientContext.UserAgent,

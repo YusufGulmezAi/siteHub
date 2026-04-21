@@ -5,12 +5,14 @@ using Microsoft.Extensions.Logging;
 using SiteHub.Application.Abstractions.Audit;
 using SiteHub.Application.Abstractions.Authentication;
 using SiteHub.Application.Abstractions.CodeGeneration;
+using SiteHub.Application.Abstractions.Context;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Sessions;
 using SiteHub.Infrastructure.Authentication;
 using SiteHub.Infrastructure.Caching;
 using SiteHub.Infrastructure.CodeGeneration;
 using SiteHub.Infrastructure.Connection;
+using SiteHub.Infrastructure.Context;
 using SiteHub.Infrastructure.Identity;
 using SiteHub.Infrastructure.Persistence;
 using SiteHub.Infrastructure.Persistence.Interceptors;
@@ -81,6 +83,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<ISessionStore, RedisSessionStore>();
         services.AddSingleton<IPasswordHasher, AspNetPasswordHasher>();
+        services.AddScoped<ICurrentUser, HttpCurrentUser>();
         return services;
     }
 

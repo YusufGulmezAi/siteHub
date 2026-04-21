@@ -37,6 +37,12 @@ public sealed record Session
     public required string UserAgent { get; init; }
     public required bool IsMobile { get; init; }
 
+    /// <summary>Kullanıcının tam adı (Person.FullName) — UI'da header/menüde gösterim için.</summary>
+    public required string FullName { get; init; }
+
+    /// <summary>Login email — UI'da menüde, activity logda gösterim.</summary>
+    public required string Email { get; init; }
+
     public required DateTimeOffset LoginAt { get; init; }
     public required DateTimeOffset LastActivityAt { get; init; }
 
@@ -58,6 +64,8 @@ public sealed record Session
     public static Session Create(
         LoginAccountId loginAccountId,
         PersonId personId,
+        string fullName,
+        string email,
         string deviceId,
         string ipAddress,
         string userAgent,
@@ -70,6 +78,8 @@ public sealed record Session
             SessionId = SessionId.New(),
             LoginAccountId = loginAccountId,
             PersonId = personId,
+            FullName = fullName,
+            Email = email,
             DeviceId = deviceId,
             IpAddress = ipAddress,
             UserAgent = userAgent,

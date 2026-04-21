@@ -6,21 +6,23 @@ namespace SiteHub.Infrastructure.Persistence;
 /// <summary>
 /// EF Core Tools (dotnet ef) design-time'da DbContext'i oluşturmak için kullanır.
 ///
-/// Normal çalışma zamanında DbContext, ASP.NET Core'un DI container'ı tarafından
+/// <para>Normal çalışma zamanında DbContext, ASP.NET Core'un DI container'ı tarafından
 /// oluşturulur. Ama "dotnet ef migrations add" gibi komutlar DI container olmadan
-/// çalışır — bu factory devreye girer.
+/// çalışır — bu factory devreye girer.</para>
 ///
-/// Connection string şu sırayla aranır:
-///   1. ConnectionStrings__Postgres environment variable (.env'den gelir)
-///   2. Fallback: localhost dev varsayılanı
+/// <para>Connection string <c>ConnectionStrings__Postgres</c> environment variable'dan
+/// okunur (<c>.env</c>'den <c>env.ps1</c> ile yüklenir). Env yoksa exception fırlatılır
+/// — böylece sessizce yanlış DB'ye bağlanma riski yok.</para>
 /// </summary>
 public sealed class SiteHubDbContextFactory : IDesignTimeDbContextFactory<SiteHubDbContext>
 {
     public SiteHubDbContext CreateDbContext(string[] args)
     {
-        var connectionString =
-            Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
-            ?? "Host=localhost;Port=5432;Database=sitehub;Username=sitehub;Password=sitehub_dev_pw_change_me;Include Error Detail=true;";
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
+            ?? throw new InvalidOperationException(
+                "ConnectionStrings__Postgres env var'ı yok. " +
+                "Kurulum: `.\\env.ps1` komutuyla .env'i yükleyin. " +
+                ".env dosyası yoksa .env.example'dan kopyalayın.");
 
         var options = new DbContextOptionsBuilder<SiteHubDbContext>()
             .UseNpgsql(connectionString, npg => npg
