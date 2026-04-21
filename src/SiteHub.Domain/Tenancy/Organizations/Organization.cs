@@ -24,9 +24,17 @@ namespace SiteHub.Domain.Tenancy.Organizations;
 public sealed class Organization : SearchableAggregateRoot<OrganizationId>
 {
     // ─── Properties ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 6 haneli insan-okunabilir kod (100001-999999).
+    /// Feistel cipher ile sequence'ten üretilir — tahmin edilemez, unique.
+    /// UI'da "Firma #123456 — ABC Yönetim" şeklinde gösterilir.
+    /// </summary>
+    public long Code { get; private set; }
+
     public string Name { get; private set; } = default!;
     public string CommercialTitle { get; private set; } = default!;
-    public NationalId? TaxId { get; private set; }
+    public NationalId TaxId { get; private set; } = default!;
     public string? Address { get; private set; }
     public string? Phone { get; private set; }
     public string? Email { get; private set; }
@@ -35,9 +43,10 @@ public sealed class Organization : SearchableAggregateRoot<OrganizationId>
     // EF Core için parametresiz ctor
     private Organization() : base() { }
 
-    private Organization(OrganizationId id, string name, string commercialTitle, NationalId? taxId)
+    private Organization(OrganizationId id, long code, string name, string commercialTitle, NationalId taxId)
         : base(id)
     {
+        Code = code;
         Name = name;
         CommercialTitle = commercialTitle;
         TaxId = taxId;
@@ -46,23 +55,36 @@ public sealed class Organization : SearchableAggregateRoot<OrganizationId>
 
     // ─── Factory ────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Yeni organizasyon oluşturur. VKN zorunlu (Faz E kararı).
+    /// </summary>
+    /// <param name="code">6 haneli Feistel kod — <see cref="ICodeGenerator"/>'dan alınır.</param>
+    /// <param name="name">Kısa ad (listeler, başlıklar).</param>
+    /// <param name="commercialTitle">Resmi ticari unvan (fatura, belgeler).</param>
+    /// <param name="taxId">VKN (zorunlu — ADR-0012 tüzel kişi).</param>
     public static Organization Create(
+        long code,
         string name,
         string commercialTitle,
-        NationalId? taxId)
+        NationalId taxId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(commercialTitle);
+        ArgumentNullException.ThrowIfNull(taxId);
+
+        if (code < 100_001 || code > 999_999)
+            throw new ArgumentOutOfRangeException(nameof(code),
+                "Organizasyon kodu 6 haneli olmalıdır (100001-999999).");
 
         if (name.Length > 200)
             throw new ArgumentException("Organizasyon adı 200 karakteri aşamaz.", nameof(name));
         if (commercialTitle.Length > 500)
             throw new ArgumentException("Ticari unvan 500 karakteri aşamaz.", nameof(commercialTitle));
 
-        if (taxId is not null && taxId.Type != NationalIdType.VKN)
+        if (taxId.Type != NationalIdType.VKN)
             throw new ArgumentException("Organizasyon kimlik numarası VKN olmalıdır.", nameof(taxId));
 
-        var org = new Organization(OrganizationId.New(), name.Trim(), commercialTitle.Trim(), taxId);
+        var org = new Organization(OrganizationId.New(), code, name.Trim(), commercialTitle.Trim(), taxId);
         org.RecomputeSearchText();
         return org;
     }
@@ -74,6 +96,11 @@ public sealed class Organization : SearchableAggregateRoot<OrganizationId>
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newCommercialTitle);
 
+        if (newName.Length > 200)
+            throw new ArgumentException("Organizasyon adı 200 karakteri aşamaz.", nameof(newName));
+        if (newCommercialTitle.Length > 500)
+            throw new ArgumentException("Ticari unvan 500 karakteri aşamaz.", nameof(newCommercialTitle));
+
         Name = newName.Trim();
         CommercialTitle = newCommercialTitle.Trim();
         RecomputeSearchText();
@@ -81,9 +108,26 @@ public sealed class Organization : SearchableAggregateRoot<OrganizationId>
 
     public void UpdateContact(string? address, string? phone, string? email)
     {
-        Address = address?.Trim();
-        Phone = phone?.Trim();
-        Email = email?.Trim();
+        if (address is not null && address.Length > 1000)
+            throw new ArgumentException("Adres 1000 karakteri aşamaz.", nameof(address));
+        if (phone is not null && phone.Length > 30)
+            throw new ArgumentException("Telefon 30 karakteri aşamaz.", nameof(phone));
+        if (email is not null && email.Length > 320)
+            throw new ArgumentException("E-posta 320 karakteri aşamaz.", nameof(email));
+
+        Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        Phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+        Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+        RecomputeSearchText();
+    }
+
+    public void ChangeTaxId(NationalId newTaxId)
+    {
+        ArgumentNullException.ThrowIfNull(newTaxId);
+        if (newTaxId.Type != NationalIdType.VKN)
+            throw new ArgumentException("VKN olmalıdır.", nameof(newTaxId));
+
+        TaxId = newTaxId;
         RecomputeSearchText();
     }
 
@@ -101,15 +145,16 @@ public sealed class Organization : SearchableAggregateRoot<OrganizationId>
 
     /// <summary>
     /// Aranabilir metni yeniden hesapla. Her "görünür alan" değişikliğinde çağrılır.
-    /// Arama yapılırken: Name, CommercialTitle, TaxId, Phone, Email'de kullanıcı
+    /// Arama yapılırken: Code, Name, CommercialTitle, TaxId, Phone, Email'de kullanıcı
     /// parça yazabilir — hepsini tek aranabilir alana birleştiriyoruz.
     /// </summary>
     private void RecomputeSearchText()
     {
         UpdateSearchText(
+            Code.ToString(),
             Name,
             CommercialTitle,
-            TaxId?.Value,
+            TaxId.Value,
             Address,
             Phone,
             Email);

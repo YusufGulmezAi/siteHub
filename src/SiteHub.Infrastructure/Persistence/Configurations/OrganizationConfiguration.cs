@@ -17,6 +17,11 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
             .HasColumnName("id")
             .HasConversion(id => id.Value, v => OrganizationId.FromGuid(v));
 
+        // 6 haneli insan-okunabilir kod — Feistel ile sequence'ten üretilir.
+        builder.Property(o => o.Code)
+            .HasColumnName("code")
+            .IsRequired();
+
         // Görünür alanlar — tr_ci_ai (case+accent insensitive, equality/ORDER BY için)
         builder.Property(o => o.Name)
             .HasColumnName("name")
@@ -28,14 +33,15 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
             .HasMaxLength(500)
             .IsRequired();
 
-        // TaxId — deterministic collation (unique index için zorunlu)
+        // TaxId — VKN ZORUNLU (Faz E kararı), deterministic collation (unique index için)
         builder.Property(o => o.TaxId)
             .HasColumnName("tax_id")
             .HasMaxLength(11)
+            .IsRequired()
             .UseCollation(SiteHubDbContext.TurkishCsAs)
             .HasConversion(
-                id => id != null ? id.Value : null,
-                str => str != null ? NationalId.Parse(str) : null);
+                id => id.Value,
+                str => NationalId.Parse(str));
 
         builder.Property(o => o.Address).HasColumnName("address").HasMaxLength(1000);
         builder.Property(o => o.Phone).HasColumnName("phone").HasMaxLength(30);
@@ -87,8 +93,14 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
         builder.Ignore(o => o.DomainEvents);
 
         // ─── Index'ler ──────────────────────────────────────────────────
+        // Code: unique (silinmişler dahil değil — yeni kod atarken çakışma olmasın)
+        builder.HasIndex(o => o.Code).IsUnique()
+            .HasFilter("deleted_at IS NULL");
+
+        // TaxId: zorunlu oldu, unique (aktif firmalar arasında)
         builder.HasIndex(o => o.TaxId).IsUnique()
-            .HasFilter("tax_id IS NOT NULL AND deleted_at IS NULL");
+            .HasFilter("deleted_at IS NULL");
+
         builder.HasIndex(o => o.Name);
         builder.HasIndex(o => o.IsActive);
         builder.HasIndex(o => o.DeletedAt);
