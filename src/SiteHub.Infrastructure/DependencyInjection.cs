@@ -88,6 +88,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<ISessionStore, RedisSessionStore>();
         services.AddSingleton<IPasswordHasher, AspNetPasswordHasher>();
+        services.AddSingleton<ITotpService, OtpNetTotpService>();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         return services;
     }

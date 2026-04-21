@@ -22,5 +22,7 @@ public sealed class AuthenticationEndpoints : IEndpointModule
         WhoAmIEndpoint.MapTo(group);
         RequestPasswordResetEndpoint.MapTo(group);
         ResetPasswordEndpoint.MapTo(group);
+        Verify2FAEndpoint.MapTo(group);
+        TwoFactorSetupEndpoints.MapTo(group);
     }
 }

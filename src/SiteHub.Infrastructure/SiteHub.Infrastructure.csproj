@@ -37,6 +37,7 @@
     <PackageReference Include="Scrutor" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="Otp.NET" />
     <!--
       Not: System.Security.Cryptography.Xml transitive pin'i KALDIRILDI.
       FrameworkReference "Microsoft.AspNetCore.App" zaten güvenli sürümü getiriyor

@@ -68,6 +68,19 @@ public sealed class LoginAccountConfiguration : IEntityTypeConfiguration<LoginAc
             .HasColumnName("lockout_until")
             .HasColumnType("timestamp with time zone");
 
+        // 2FA (TOTP) — ADR-0011 §4
+        builder.Property(l => l.TwoFactorEnabled)
+            .HasColumnName("two_factor_enabled")
+            .IsRequired();
+
+        builder.Property(l => l.TwoFactorSecret)
+            .HasColumnName("two_factor_secret")
+            .HasMaxLength(64);   // Base32 encoded 20 bytes = 32 chars, güvenli payda
+
+        builder.Property(l => l.TwoFactorEnabledAt)
+            .HasColumnName("two_factor_enabled_at")
+            .HasColumnType("timestamp with time zone");
+
         // Audit
         builder.Property(l => l.CreatedAt)
             .HasColumnName("created_at")

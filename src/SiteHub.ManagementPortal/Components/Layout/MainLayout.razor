@@ -63,7 +63,7 @@
                         <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
                         <span>Profilim</span>
                     </button>
-                    <button class="user-menu-item" @onclick="CloseUserMenu">
+                    <button class="user-menu-item" @onclick="NavigateToTwoFactor">
                         <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Small" />
                         <span>Güvenlik (2FA)</span>
                     </button>
@@ -166,6 +166,12 @@
     private void ToggleUserMenu() => _userMenuOpen = !_userMenuOpen;
 
     private void CloseUserMenu() => _userMenuOpen = false;
+
+    private void NavigateToTwoFactor()
+    {
+        _userMenuOpen = false;
+        Nav.NavigateTo("/account/security/2fa");
+    }
 
     protected override void OnInitialized()
     {

@@ -31,7 +31,9 @@ public static class WhoAmIEndpoint
         string IpAddress,
         string LoginAt,
         string LastActivityAt,
-        int MembershipCount);
+        int MembershipCount,
+        bool TwoFactorEnabled,
+        bool Pending2FA);
 
     private static IResult HandleAsync(HttpContext http)
     {
@@ -45,6 +47,8 @@ public static class WhoAmIEndpoint
             IpAddress: session.IpAddress,
             LoginAt: session.LoginAt.ToString("o"),
             LastActivityAt: session.LastActivityAt.ToString("o"),
-            MembershipCount: session.AvailableContexts.Count));
+            MembershipCount: session.AvailableContexts.Count,
+            TwoFactorEnabled: session.TwoFactorEnabled,
+            Pending2FA: session.Pending2FA));
     }
 }

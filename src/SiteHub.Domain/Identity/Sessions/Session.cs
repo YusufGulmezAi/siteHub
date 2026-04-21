@@ -43,6 +43,9 @@ public sealed record Session
     /// <summary>Login email — UI'da menüde, activity logda gösterim.</summary>
     public required string Email { get; init; }
 
+    /// <summary>2FA etkin mi? Session a\u00e7\u0131l\u0131rken snapshot al\u0131n\u0131r.</summary>
+    public required bool TwoFactorEnabled { get; init; }
+
     public required DateTimeOffset LoginAt { get; init; }
     public required DateTimeOffset LastActivityAt { get; init; }
 
@@ -59,6 +62,14 @@ public sealed record Session
     /// </summary>
     public required IReadOnlyList<MembershipSummary> AvailableContexts { get; init; }
 
+    /// <summary>
+    /// 2FA bekliyor mu? true ise session "yar\u0131-aktif" durumda \u2014 sadece
+    /// <c>/auth/verify-2fa</c> ve <c>/auth/logout</c> endpoint'lerine eri\u015fim var.
+    /// Ba\u015far\u0131l\u0131 TOTP verify'dan sonra false'a d\u00fc\u015fer.
+    /// ADR-0011 §4.
+    /// </summary>
+    public bool Pending2FA { get; init; }
+
     // ─── Factory ─────────────────────────────────────────────────────────
 
     public static Session Create(
@@ -71,7 +82,9 @@ public sealed record Session
         string userAgent,
         bool isMobile,
         IReadOnlyList<MembershipSummary> availableContexts,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool pending2FA = false,
+        bool twoFactorEnabled = false)
     {
         return new Session
         {
@@ -80,6 +93,7 @@ public sealed record Session
             PersonId = personId,
             FullName = fullName,
             Email = email,
+            TwoFactorEnabled = twoFactorEnabled,
             DeviceId = deviceId,
             IpAddress = ipAddress,
             UserAgent = userAgent,
@@ -88,6 +102,7 @@ public sealed record Session
             LastActivityAt = now,
             ActiveContext = null,
             AvailableContexts = availableContexts,
+            Pending2FA = pending2FA,
         };
     }
 
@@ -95,6 +110,10 @@ public sealed record Session
         => this with { ActiveContext = context, LastActivityAt = now };
 
     public Session Touch(DateTimeOffset now) => this with { LastActivityAt = now };
+
+    /// <summary>2FA do\u011fruland\u0131: Pending2FA = false yap.</summary>
+    public Session CompletePending2FA(DateTimeOffset now)
+        => this with { Pending2FA = false, LastActivityAt = now };
 }
 
 /// <summary>

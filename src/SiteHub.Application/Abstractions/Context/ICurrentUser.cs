@@ -31,4 +31,10 @@ public interface ICurrentUser
 
     /// <summary>Sahip olduğu membership sayısı (UI'da badge göstermek için).</summary>
     int MembershipCount { get; }
+
+    /// <summary>
+    /// Session 2FA bekliyor mu? True ise kullan\u0131c\u0131 sadece
+    /// <c>/auth/verify-2fa</c> sayfas\u0131na y\u00f6nlendirilmeli.
+    /// </summary>
+    bool Pending2FA { get; }
 }

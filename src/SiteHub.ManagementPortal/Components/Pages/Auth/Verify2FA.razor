@@ -1,0 +1,182 @@
+@page "/verify-2fa"
+@layout AuthLayout
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject SiteHub.Application.Abstractions.Context.ICurrentUser CurrentUser
+
+<PageTitle>2FA Doğrulama — SiteHub</PageTitle>
+
+<div class="login-grid">
+
+    @* Sol panel — gradient *@
+    <aside class="brand-pane">
+
+        <div class="brand-logo">
+            <div class="logo-mark">S</div>
+            <span class="logo-text">SiteHub</span>
+        </div>
+
+        <div class="brand-copy">
+            <p class="eyebrow">İki adımlı doğrulama</p>
+            <h1 class="headline">Tek adım daha — hesabınız güvende</h1>
+            <p class="sub">
+                Authenticator uygulamanızdaki 6 haneli doğrulama kodunu girin.
+                Her 30 saniyede bir yeni kod üretilir.
+            </p>
+        </div>
+
+        <div class="brand-stats">
+            <div class="stat">
+                <div class="stat-value">🔐</div>
+                <div class="stat-label">TOTP (RFC 6238)</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">30s</div>
+                <div class="stat-label">Yenileme süresi</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">6</div>
+                <div class="stat-label">haneli kod</div>
+            </div>
+        </div>
+    </aside>
+
+    @* Sağ panel — form *@
+    <section class="form-pane">
+
+        <div class="form-container">
+
+            <header class="form-header">
+                <h2>Doğrulama kodunuzu girin</h2>
+                <p>
+                    @if (!string.IsNullOrEmpty(CurrentUser.Email))
+                    {
+                        <span>@CurrentUser.Email hesabı için Authenticator uygulamanızı açın.</span>
+                    }
+                    else
+                    {
+                        <span>Authenticator uygulamanızı açın ve SiteHub için gösterilen 6 haneli kodu girin.</span>
+                    }
+                </p>
+            </header>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert-error">
+                    @_errorMessage
+                </div>
+            }
+
+            <form @onsubmit="HandleVerify" @onsubmit:preventDefault autocomplete="off">
+
+                <div class="field">
+                    <label for="code">6 haneli kod</label>
+                    <input id="code"
+                           type="text"
+                           inputmode="numeric"
+                           pattern="[0-9]*"
+                           autocomplete="one-time-code"
+                           spellcheck="false"
+                           maxlength="6"
+                           placeholder="000000"
+                           class="totp-input"
+                           @bind="_code"
+                           @bind:event="oninput"
+                           disabled="@_isSubmitting" />
+                </div>
+
+                <button type="submit" class="submit-btn" disabled="@(_isSubmitting || _code.Length < 6)">
+                    @if (_isSubmitting)
+                    {
+                        <span class="spinner"></span>
+                        <span>Doğrulanıyor…</span>
+                    }
+                    else
+                    {
+                        <span>Doğrula</span>
+                    }
+                </button>
+
+            </form>
+
+            <div class="form-footer">
+                <a href="#" @onclick="HandleLogout" @onclick:preventDefault class="back-link">
+                    ← Vazgeç ve çıkış yap
+                </a>
+            </div>
+        </div>
+
+    </section>
+</div>
+
+@code {
+    private string _code = "";
+    private string? _errorMessage;
+    private bool _isSubmitting;
+
+    protected override void OnInitialized()
+    {
+        // Pending2FA session'\u0131 olmayan ki\u015fi bu sayfada bulunmamal\u0131
+        if (!CurrentUser.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!CurrentUser.Pending2FA)
+        {
+            // Zaten do\u011frulanm\u0131\u015f, home'a git
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+    }
+
+    private async Task HandleVerify()
+    {
+        if (string.IsNullOrWhiteSpace(_code) || _code.Length != 6)
+        {
+            _errorMessage = "6 haneli kod zorunludur.";
+            return;
+        }
+
+        _errorMessage = null;
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<VerifyResult>(
+                "sitehubAuth.verify2FA",
+                _code);
+
+            if (result.Success)
+            {
+                // Session art\u0131k tam yetkili — home'a
+                Nav.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                _errorMessage = result.Message ?? "Kod doğrulanamadı.";
+                _code = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Beklenmeyen bir hata oluştu.";
+            Console.Error.WriteLine(ex);
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        try { await JS.InvokeVoidAsync("sitehubAuth.logout"); }
+        catch { }
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    private sealed record VerifyResult(bool Success, string? Code, string? Message);
+}

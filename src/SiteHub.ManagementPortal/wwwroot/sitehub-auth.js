@@ -27,7 +27,11 @@ window.sitehubAuth = {
 
             if (response.ok) {
                 const data = await response.json();
-                return { success: true, sessionId: data.sessionId };
+                return {
+                    success: true,
+                    sessionId: data.sessionId,
+                    requiresTwoFactor: data.requiresTwoFactor ?? false
+                };
             }
 
             // Backend'den hata kodu gelmi\u015f olabilir (401, 400)
@@ -110,6 +114,149 @@ window.sitehubAuth = {
         } catch (err) {
             console.error("ResetPassword fetch hatas\u0131:", err);
             return { success: false, code: null, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * POST /auth/verify-2fa
+     * @param {string} code - 6 haneli TOTP kodu
+     * @returns {Promise<{success: boolean, code?: string, message: string}>}
+     */
+    async verify2FA(code) {
+        try {
+            const response = await fetch("/auth/verify-2fa", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ code })
+            });
+            const data = await response.json();
+            return {
+                success: data.success ?? false,
+                code: data.code ?? null,
+                message: data.message ?? ""
+            };
+        } catch (err) {
+            console.error("Verify2FA fetch hatas\u0131:", err);
+            return { success: false, code: null, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * POST /auth/setup-2fa/initiate \u2014 secret \u00fcretir + QR URI d\u00f6ner
+     */
+    async initiate2FASetup() {
+        try {
+            const response = await fetch("/auth/setup-2fa/initiate", {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                credentials: "same-origin"
+            });
+            const data = await response.json();
+            return {
+                success: data.success ?? false,
+                secret: data.secret ?? null,
+                otpAuthUri: data.otpAuthUri ?? null,
+                message: data.message ?? ""
+            };
+        } catch (err) {
+            console.error("Initiate2FASetup fetch hatas\u0131:", err);
+            return { success: false, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * POST /auth/setup-2fa/confirm \u2014 kullan\u0131c\u0131 kodu girer, 2FA aktive olur
+     */
+    async confirm2FASetup(code) {
+        try {
+            const response = await fetch("/auth/setup-2fa/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ code })
+            });
+            const data = await response.json();
+            return {
+                success: data.success ?? false,
+                message: data.message ?? ""
+            };
+        } catch (err) {
+            console.error("Confirm2FASetup fetch hatas\u0131:", err);
+            return { success: false, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * POST /auth/setup-2fa/disable
+     */
+    async disable2FA(code) {
+        try {
+            const response = await fetch("/auth/setup-2fa/disable", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ code })
+            });
+            const data = await response.json();
+            return {
+                success: data.success ?? false,
+                message: data.message ?? ""
+            };
+        } catch (err) {
+            console.error("Disable2FA fetch hatas\u0131:", err);
+            return { success: false, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * GET /auth/me \u2014 aktif session info
+     */
+    async whoAmI() {
+        try {
+            const response = await fetch("/auth/me", {
+                method: "GET",
+                headers: { "Accept": "application/json" },
+                credentials: "same-origin"
+            });
+            if (!response.ok) return null;
+            return await response.json();
+        } catch (err) {
+            console.error("WhoAmI fetch hatas\u0131:", err);
+            return null;
+        }
+    },
+
+    /**
+     * QR kod \u00e7izer. qrcode-generator CDN'den yan dinamik y\u00fckler.
+     * @param {string} containerId - DOM element id
+     * @param {string} otpAuthUri  - otpauth:// URI
+     */
+    async drawQrCode(containerId, otpAuthUri) {
+        // qrcode-generator'\u0131 lazy y\u00fckle
+        if (typeof window.qrcode === "undefined") {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement("script");
+                s.src = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js";
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        const el = document.getElementById(containerId);
+        if (!el) return;
+
+        const qr = window.qrcode(0, 'M');  // auto type number, error correction M
+        qr.addData(otpAuthUri);
+        qr.make();
+        el.innerHTML = qr.createImgTag(6, 8);  // cell=6px, margin=8
+        // G\u00f6rseli konteynere uydur
+        const img = el.querySelector("img");
+        if (img) {
+            img.style.width = "100%";
+            img.style.height = "auto";
+            img.style.display = "block";
         }
     }
 };

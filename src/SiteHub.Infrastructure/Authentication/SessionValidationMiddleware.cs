@@ -93,7 +93,50 @@ public sealed class SessionValidationMiddleware
         // Session downstream için context'e yerleştir
         context.Items[SessionContextKey] = session;
 
+        // Pending2FA ise sadece belirli path'lere izin ver
+        if (session.Pending2FA && !IsAllowedPathForPending2FA(context.Request.Path))
+        {
+            // UI: /verify-2fa'ya y\u00f6nlendir
+            // API: 403 d\u00f6n
+            if (context.Request.Path.StartsWithSegments("/api") ||
+                context.Request.Headers["Accept"].ToString().Contains("application/json"))
+            {
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsync("2FA required.");
+                return;
+            }
+
+            context.Response.Redirect("/verify-2fa");
+            return;
+        }
+
         await _next(context);
+    }
+
+    /// <summary>
+    /// Pending2FA session'da hangi path'ler izinli?
+    /// - <c>/verify-2fa</c> sayfas\u0131 (UI)
+    /// - <c>/auth/verify-2fa</c> endpoint (API)
+    /// - <c>/auth/logout</c> (kullan\u0131c\u0131 vazge\u00e7erse)
+    /// - Static assets (CSS, JS, fonts, framework scripts)
+    /// - Blazor framework (SignalR hub, client-side scripts)
+    /// </summary>
+    private static bool IsAllowedPathForPending2FA(PathString path)
+    {
+        if (!path.HasValue) return false;
+        var p = path.Value!;
+
+        return p.StartsWith("/verify-2fa", StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("/auth/verify-2fa", StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("/auth/logout", StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("/_blazor", StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("/_framework", StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("/_content", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task SignOutAsync(HttpContext context, string reason)

@@ -177,16 +177,18 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
             userAgent: command.ClientContext.UserAgent,
             isMobile: command.ClientContext.IsMobile,
             availableContexts: memberships,
-            now: now);
+            now: now,
+            pending2FA: account.TwoFactorEnabled,
+            twoFactorEnabled: account.TwoFactorEnabled);
 
         await _sessionStore.SaveAsync(session, ct);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Login başarılı: person={PersonId}, account={AccountId}, session={SessionId}, eski kapatıldı={Count}.",
-            person.Id, account.Id, session.SessionId, closedOld.Count);
+            "Login ba\u015far\u0131l\u0131: person={PersonId}, account={AccountId}, session={SessionId}, pending2FA={Pending2FA}, eski kapat\u0131ld\u0131={Count}.",
+            person.Id, account.Id, session.SessionId, session.Pending2FA, closedOld.Count);
 
-        return LoginResult.Success(session.SessionId, deviceId, closedOld);
+        return LoginResult.Success(session.SessionId, deviceId, closedOld, session.Pending2FA);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────

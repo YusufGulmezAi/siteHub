@@ -144,8 +144,15 @@
 
             if (result.Success)
             {
-                // Sayfay\u0131 tam yenile — Blazor circuit kapan\u0131r, yeni request cookie'li gelir.
-                Nav.NavigateTo("/", forceLoad: true);
+                // Session yarat\u0131ld\u0131. 2FA gerekiyorsa /verify-2fa'ya, de\u011filse home'a.
+                if (result.RequiresTwoFactor)
+                {
+                    Nav.NavigateTo("/verify-2fa", forceLoad: true);
+                }
+                else
+                {
+                    Nav.NavigateTo("/", forceLoad: true);
+                }
             }
             else
             {
@@ -165,5 +172,5 @@
         }
     }
 
-    private sealed record LoginJsResult(bool Success, string? Message);
+    private sealed record LoginJsResult(bool Success, string? Message, bool RequiresTwoFactor);
 }

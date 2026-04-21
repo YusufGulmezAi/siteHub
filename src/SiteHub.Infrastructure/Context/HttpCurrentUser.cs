@@ -30,6 +30,7 @@ public sealed class HttpCurrentUser : ICurrentUser
     public string? FullName => Session?.FullName;
     public string? Email => Session?.Email;
     public int MembershipCount => Session?.AvailableContexts.Count ?? 0;
+    public bool Pending2FA => Session?.Pending2FA ?? false;
 
     public string Initials
     {

@@ -55,6 +55,12 @@ public sealed class LoginAccount : AuditableAggregateRoot<LoginAccountId>
     public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockoutUntil { get; private set; }
 
+    // 2FA (TOTP) — ADR-0011 §4
+    // Secret etkinle\u015ftirildi\u011finde set edilir, bir daha g\u00f6sterilmez.
+    public bool TwoFactorEnabled { get; private set; }
+    public string? TwoFactorSecret { get; private set; }
+    public DateTimeOffset? TwoFactorEnabledAt { get; private set; }
+
     private LoginAccount() : base() { }
 
     private LoginAccount(LoginAccountId id, PersonId personId, string loginEmail, string passwordHash)
@@ -210,6 +216,31 @@ public sealed class LoginAccount : AuditableAggregateRoot<LoginAccountId>
         if (ValidFrom.HasValue && at < ValidFrom.Value) return false;
         if (ValidTo.HasValue && at > ValidTo.Value) return false;
         return true;
+    }
+
+    // ─── 2FA (TOTP) —────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 2FA'y\u0131 etkinle\u015ftirir. Secret setup flow'undan gelir (kullan\u0131c\u0131 kodu do\u011fruladi\u011f\u0131nda).
+    /// </summary>
+    public void EnableTwoFactor(string secret, DateTimeOffset at)
+    {
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new BusinessRuleViolationException("2FA secret bo\u015f olamaz.");
+        if (TwoFactorEnabled)
+            throw new BusinessRuleViolationException("2FA zaten etkin.");
+
+        TwoFactorSecret = secret;
+        TwoFactorEnabled = true;
+        TwoFactorEnabledAt = at;
+    }
+
+    /// <summary>2FA'y\u0131 devre d\u0131\u015f\u0131 b\u0131rak\u0131r. Secret silinir.</summary>
+    public void DisableTwoFactor()
+    {
+        TwoFactorEnabled = false;
+        TwoFactorSecret = null;
+        TwoFactorEnabledAt = null;
     }
 
     // ─── Validation helpers ──────────────────────────────────────────────

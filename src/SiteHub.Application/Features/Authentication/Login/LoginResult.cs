@@ -23,13 +23,24 @@ public sealed record LoginResult
     // Kaç eski session kapatıldı (SignalR broadcast için — faz 3'te)
     public IReadOnlyList<SessionId> ClosedOldSessions { get; init; } = Array.Empty<SessionId>();
 
-    public static LoginResult Success(SessionId sessionId, string deviceId, IReadOnlyList<SessionId> closedOld) =>
+    /// <summary>
+    /// Login ba\u015far\u0131l\u0131 ama 2FA kodu bekliyor.
+    /// UI kullan\u0131c\u0131y\u0131 <c>/verify-2fa</c>'ya y\u00f6nlendirmeli.
+    /// </summary>
+    public bool RequiresTwoFactor { get; init; }
+
+    public static LoginResult Success(
+        SessionId sessionId,
+        string deviceId,
+        IReadOnlyList<SessionId> closedOld,
+        bool requiresTwoFactor = false) =>
         new()
         {
             IsSuccess = true,
             SessionId = sessionId,
             DeviceId = deviceId,
-            ClosedOldSessions = closedOld
+            ClosedOldSessions = closedOld,
+            RequiresTwoFactor = requiresTwoFactor,
         };
 
     public static LoginResult Failure(LoginFailureCode code) => new()

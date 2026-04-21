@@ -34,7 +34,10 @@ public static class LoginEndpoint
 
     public sealed record LoginRequest(string Input, string Password);
 
-    public sealed record LoginResponse(string SessionId, int ClosedOldSessionCount);
+    public sealed record LoginResponse(
+        string SessionId,
+        int ClosedOldSessionCount,
+        bool RequiresTwoFactor);
 
     public sealed record LoginErrorResponse(string Code, string Message);
 
@@ -95,7 +98,8 @@ public static class LoginEndpoint
 
         return TypedResults.Ok(new LoginResponse(
             SessionId: result.SessionId!.Value.ToString(),
-            ClosedOldSessionCount: result.ClosedOldSessions.Count));
+            ClosedOldSessionCount: result.ClosedOldSessions.Count,
+            RequiresTwoFactor: result.RequiresTwoFactor));
     }
 
     private static int MapErrorStatus(LoginFailureCode code) => code switch

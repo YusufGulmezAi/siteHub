@@ -1,0 +1,351 @@
+@page "/account/security/2fa"
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject SiteHub.Application.Abstractions.Context.ICurrentUser CurrentUser
+
+<PageTitle>2FA Güvenlik — SiteHub</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-weight:600">İki Adımlı Doğrulama</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:#6B7280">
+    Hesabınızı authenticator uygulaması (Google Authenticator, Microsoft Authenticator, Authy) ile koruyun.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_step == Step.View)
+{
+    @* Mevcut durumu göster *@
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardContent>
+            <div style="display:flex; align-items:center; gap:20px;">
+                <MudIcon Icon="@(_twoFactorEnabled ? Icons.Material.Filled.VerifiedUser : Icons.Material.Outlined.GppMaybe)"
+                         Size="Size.Large"
+                         Color="@(_twoFactorEnabled ? Color.Success : Color.Warning)" />
+                <div style="flex:1">
+                    <MudText Typo="Typo.h6">
+                        @(_twoFactorEnabled ? "2FA etkin" : "2FA henüz etkin değil")
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color:#6B7280; margin-top:4px">
+                        @if (_twoFactorEnabled)
+                        {
+                            <span>Her girişte 6 haneli kod istenir. Authenticator uygulamanızdan alabilirsiniz.</span>
+                        }
+                        else
+                        {
+                            <span>Etkinleştirmek için aşağıdaki butonu kullanın. Kurulum 1 dakika sürer.</span>
+                        }
+                    </MudText>
+                </div>
+                <div>
+                    @if (_twoFactorEnabled)
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete"
+                                   OnClick="ShowDisableStep">
+                            2FA'yı kaldır
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Security"
+                                   OnClick="StartSetup">
+                            2FA'yı etkinleştir
+                        </MudButton>
+                    }
+                </div>
+            </div>
+        </MudCardContent>
+    </MudCard>
+}
+else if (_step == Step.Initiate)
+{
+    @* Setup ekranı: QR + secret + kod girişi *@
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.h6" Class="mb-4">Kurulum — Authenticator uygulaması ekleyin</MudText>
+
+            <MudText Typo="Typo.body2" Class="mb-3">
+                <b>1. adım:</b> Telefonunuzda Google Authenticator, Microsoft Authenticator veya Authy uygulamasını açın.
+            </MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">
+                <b>2. adım:</b> "Yeni hesap ekle" → "QR kod tara" seçeneğini kullanın.
+            </MudText>
+
+            <div style="display:flex; gap:32px; margin:24px 0; flex-wrap:wrap;">
+                <div style="flex:0 0 240px;">
+                    <div id="qrcode-container"
+                         style="width:240px; height:240px; background:white; padding:12px; border:1px solid #E5E7EB; border-radius:8px;">
+                    </div>
+                </div>
+
+                <div style="flex:1; min-width:240px;">
+                    <MudText Typo="Typo.body2" Class="mb-2" Style="color:#6B7280">
+                        <b>QR okuyamıyor musunuz?</b> Aşağıdaki kodu manuel olarak girin:
+                    </MudText>
+                    <MudTextField Value="@_pendingSecret"
+                                  ReadOnly="true"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-4"
+                                  Style="font-family:monospace; letter-spacing:2px;" />
+
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                        Algorithm: SHA1, Digits: 6, Period: 30s
+                    </MudAlert>
+                </div>
+            </div>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.body2" Class="mb-3">
+                <b>3. adım:</b> Uygulamanın gösterdiği 6 haneli kodu buraya girin:
+            </MudText>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@_errorMessage</MudAlert>
+            }
+
+            <div style="display:flex; gap:12px; align-items:flex-end;">
+                <MudTextField @bind-Value="_code"
+                              Label="6 haneli kod"
+                              Variant="Variant.Outlined"
+                              InputType="InputType.Text"
+                              MaxLength="6"
+                              Style="max-width:200px; font-family:monospace; letter-spacing:4px; font-size:18px;"
+                              Disabled="@_isSubmitting" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="ConfirmSetup"
+                           Disabled="@(_isSubmitting || _code.Length < 6)">
+                    @if (_isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                    Doğrula ve etkinleştir
+                </MudButton>
+                <MudButton Variant="Variant.Text"
+                           OnClick="CancelSetup"
+                           Disabled="@_isSubmitting">
+                    İptal
+                </MudButton>
+            </div>
+        </MudCardContent>
+    </MudCard>
+}
+else if (_step == Step.Disable)
+{
+    @* Disable onay ekranı *@
+    <MudCard Elevation="1" Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.h6" Class="mb-4">2FA'yı kaldır</MudText>
+
+            <MudAlert Severity="Severity.Warning" Dense="false" Class="mb-4">
+                2FA'yı kaldırmak için mevcut authenticator kodunuzu girmeniz gerekir.
+                Kaldırıldıktan sonra hesabınız yalnızca parola ile korunur.
+            </MudAlert>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">@_errorMessage</MudAlert>
+            }
+
+            <div style="display:flex; gap:12px; align-items:flex-end;">
+                <MudTextField @bind-Value="_code"
+                              Label="Mevcut 6 haneli kod"
+                              Variant="Variant.Outlined"
+                              MaxLength="6"
+                              Style="max-width:200px;"
+                              Disabled="@_isSubmitting" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           OnClick="ConfirmDisable"
+                           Disabled="@(_isSubmitting || _code.Length < 6)">
+                    @if (_isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                    Kaldır
+                </MudButton>
+                <MudButton Variant="Variant.Text"
+                           OnClick="CancelDisable"
+                           Disabled="@_isSubmitting">
+                    Vazgeç
+                </MudButton>
+            </div>
+        </MudCardContent>
+    </MudCard>
+}
+else if (_step == Step.Success)
+{
+    <MudAlert Severity="Severity.Success">
+        @_successMessage
+    </MudAlert>
+    <MudButton OnClick="BackToView" Class="mt-4">Tamam</MudButton>
+}
+
+@code {
+    private enum Step { View, Initiate, Disable, Success }
+
+    private Step _step = Step.View;
+    private bool _loading = true;
+    private bool _isSubmitting;
+    private bool _twoFactorEnabled;
+    private string? _pendingSecret;
+    private string? _pendingOtpUri;
+    private string _code = "";
+    private string? _errorMessage;
+    private string _successMessage = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadStatusAsync();
+        }
+
+        // QR yeni \u00e7izim gerekiyor mu?
+        if (_step == Step.Initiate && !string.IsNullOrEmpty(_pendingOtpUri))
+        {
+            await JS.InvokeVoidAsync("sitehubAuth.drawQrCode", "qrcode-container", _pendingOtpUri);
+        }
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        try
+        {
+            var response = await JS.InvokeAsync<WhoAmIResponse>("sitehubAuth.whoAmI");
+            _twoFactorEnabled = response?.TwoFactorEnabled ?? false;
+        }
+        catch { /* g\u00f6rmezden gel */ }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StartSetup()
+    {
+        _errorMessage = null;
+        _code = "";
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<InitiateResult>("sitehubAuth.initiate2FASetup");
+            if (result.Success)
+            {
+                _pendingSecret = result.Secret;
+                _pendingOtpUri = result.OtpAuthUri;
+                _step = Step.Initiate;
+            }
+            else
+            {
+                _errorMessage = result.Message ?? "Ba\u015flat\u0131lamad\u0131.";
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmSetup()
+    {
+        if (_code.Length != 6) return;
+
+        _errorMessage = null;
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<GenericResult>("sitehubAuth.confirm2FASetup", _code);
+            if (result.Success)
+            {
+                _successMessage = "2FA ba\u015far\u0131yla etkinle\u015ftirildi. Bir sonraki giri\u015finizde kod istenecek.";
+                _twoFactorEnabled = true;
+                _step = Step.Success;
+                _pendingSecret = null;
+                _pendingOtpUri = null;
+            }
+            else
+            {
+                _errorMessage = result.Message ?? "Onaylanamad\u0131.";
+                _code = "";
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelSetup()
+    {
+        _step = Step.View;
+        _pendingSecret = null;
+        _pendingOtpUri = null;
+        _code = "";
+        _errorMessage = null;
+    }
+
+    private void ShowDisableStep()
+    {
+        _step = Step.Disable;
+        _code = "";
+        _errorMessage = null;
+    }
+
+    private async Task ConfirmDisable()
+    {
+        if (_code.Length != 6) return;
+
+        _errorMessage = null;
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<GenericResult>("sitehubAuth.disable2FA", _code);
+            if (result.Success)
+            {
+                _successMessage = "2FA kald\u0131r\u0131ld\u0131. Hesab\u0131n\u0131z art\u0131k yaln\u0131zca parola ile korunuyor.";
+                _twoFactorEnabled = false;
+                _step = Step.Success;
+            }
+            else
+            {
+                _errorMessage = result.Message ?? "Kald\u0131r\u0131lamad\u0131.";
+                _code = "";
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelDisable()
+    {
+        _step = Step.View;
+        _code = "";
+        _errorMessage = null;
+    }
+
+    private void BackToView()
+    {
+        _step = Step.View;
+        _successMessage = "";
+        _code = "";
+    }
+
+    private sealed record WhoAmIResponse(bool TwoFactorEnabled);
+    private sealed record InitiateResult(bool Success, string? Secret, string? OtpAuthUri, string? Message);
+    private sealed record GenericResult(bool Success, string? Message);
+}

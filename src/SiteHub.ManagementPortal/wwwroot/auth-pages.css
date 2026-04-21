@@ -222,6 +222,21 @@
     color: #9ca3af;
 }
 
+/* TOTP kodu i\u00e7in \u00f6zel g\u00f6r\u00fcn\u00fcm (b\u00fcy\u00fck, monospace, ortal\u0131) */
+.field input.totp-input {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 24px;
+    letter-spacing: 10px;
+    text-align: center;
+    padding: 14px 14px;
+    font-weight: 500;
+}
+
+.field input.totp-input::placeholder {
+    letter-spacing: 10px;
+    color: #D1D5DB;
+}
+
 /* Chrome/Safari autofill sarı background'ını kaldır */
 .field input:-webkit-autofill,
 .field input:-webkit-autofill:hover,
