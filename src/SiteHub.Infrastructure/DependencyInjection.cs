@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUserService, NullCurrentUserService>();
         services.AddScoped<ICurrentConnectionInfo, HttpCurrentConnectionInfo>();
         services.AddScoped<AuditSaveChangesInterceptor>();
+        services.AddScoped<TenantContextConnectionInterceptor>();
 
         services.AddDbContext<SiteHubDbContext>((sp, options) =>
         {
@@ -58,7 +59,9 @@ public static class DependencyInjection
                 .MigrationsHistoryTable("__ef_migrations_history", "public")
                 .MigrationsAssembly(typeof(SiteHubDbContextFactory).Assembly.GetName().Name));
 
-            options.AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>());
+            options.AddInterceptors(
+                sp.GetRequiredService<AuditSaveChangesInterceptor>(),
+                sp.GetRequiredService<TenantContextConnectionInterceptor>());
 
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
             {
