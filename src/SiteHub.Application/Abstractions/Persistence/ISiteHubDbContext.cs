@@ -38,6 +38,7 @@ public interface ISiteHubDbContext
     DbSet<Permission> Permissions { get; }
     DbSet<Role> Roles { get; }
     DbSet<Membership> Memberships { get; }
+    DbSet<PasswordResetToken> PasswordResetTokens { get; }
 
     // Audit
     DbSet<AuditEntry> AuditEntries { get; }

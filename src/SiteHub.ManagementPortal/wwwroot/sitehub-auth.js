@@ -63,5 +63,53 @@ window.sitehubAuth = {
             console.error("Logout fetch hatas\u0131:", err);
             return false;
         }
+    },
+
+    /**
+     * POST /auth/request-password-reset
+     * @param {string} input - TCKN / e-posta / telefon / VKN
+     * @param {string} channel - 'Email' veya 'Sms'
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async requestPasswordReset(input, channel) {
+        try {
+            const response = await fetch("/auth/request-password-reset", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ input, channel })
+            });
+            const data = await response.json();
+            return { success: data.success ?? false, message: data.message ?? "" };
+        } catch (err) {
+            console.error("PasswordReset request hatas\u0131:", err);
+            return { success: false, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
+    },
+
+    /**
+     * POST /auth/reset-password
+     * @param {string} token
+     * @param {string} newPassword
+     * @returns {Promise<{success: boolean, code?: string, message: string}>}
+     */
+    async resetPassword(token, newPassword) {
+        try {
+            const response = await fetch("/auth/reset-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ token, newPassword })
+            });
+            const data = await response.json();
+            return {
+                success: data.success ?? false,
+                code: data.code ?? null,
+                message: data.message ?? ""
+            };
+        } catch (err) {
+            console.error("ResetPassword fetch hatas\u0131:", err);
+            return { success: false, code: null, message: "Sunucuya ula\u015f\u0131lam\u0131yor." };
+        }
     }
 };

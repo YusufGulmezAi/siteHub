@@ -20,5 +20,7 @@ public sealed class AuthenticationEndpoints : IEndpointModule
         LoginEndpoint.MapTo(group);
         LogoutEndpoint.MapTo(group);
         WhoAmIEndpoint.MapTo(group);
+        RequestPasswordResetEndpoint.MapTo(group);
+        ResetPasswordEndpoint.MapTo(group);
     }
 }

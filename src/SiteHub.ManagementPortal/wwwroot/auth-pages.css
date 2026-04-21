@@ -1,0 +1,474 @@
+/* ==========================================================================
+   auth-pages.css — Login, ForgotPassword, ResetPassword ortak stilleri.
+   AuthLayout kullanan tüm sayfalarda geçerli.
+
+   Not: Bu dosya scoped DEĞİL (wwwroot/ altında), çünkü 3 sayfa aynı görünümü
+   paylaşıyor ve stil duplikasyonu istemiyoruz.
+   ========================================================================== */
+
+.login-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    min-height: 100vh;
+    width: 100%;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+/* ======= Sol panel (brand + gradient) ================================= */
+
+.brand-pane {
+    background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 35%, #10B981 100%);
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: #ffffff;
+    min-height: 100vh;
+}
+
+.brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 500;
+    font-size: 18px;
+    letter-spacing: 0.5px;
+}
+
+.logo-text {
+    color: white;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.2px;
+}
+
+.brand-copy .eyebrow {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    margin: 0 0 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.brand-copy .headline {
+    color: white;
+    font-size: 36px;
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 0 0 16px;
+    max-width: 480px;
+}
+
+.brand-copy .sub {
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 15px;
+    line-height: 1.65;
+    margin: 0;
+    max-width: 480px;
+}
+
+.brand-stats {
+    display: flex;
+    gap: 36px;
+    color: white;
+}
+
+.brand-stats .stat-value {
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.brand-stats .stat-label {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-top: 2px;
+}
+
+/* ======= Sağ panel (form) ============================================= */
+
+.form-pane {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    background: #ffffff;
+}
+
+.form-container {
+    width: 100%;
+    max-width: 360px;
+}
+
+.form-header {
+    margin-bottom: 2rem;
+}
+
+.form-header h2 {
+    font-size: 24px;
+    font-weight: 500;
+    margin: 0 0 6px;
+    color: #111827;
+}
+
+.form-header p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.55;
+}
+
+/* ======= Alerts ======================================================== */
+
+.alert-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+/* ======= Form fields =================================================== */
+
+.form-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.field label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.field-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+
+.field-head label {
+    margin: 0;
+}
+
+.field-head a {
+    font-size: 12px;
+    color: #6D28D9;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.field-head a:hover {
+    text-decoration: underline;
+}
+
+.field input[type="text"],
+.field input[type="password"],
+.field input[type="email"] {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #111827;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    transition: border-color 0.15s ease;
+    box-sizing: border-box;
+
+    /* Focus halkası YOK (kullanıcı tercihi) */
+    outline: none;
+    box-shadow: none;
+}
+
+.field input[type="text"]:hover:not(:disabled),
+.field input[type="password"]:hover:not(:disabled),
+.field input[type="email"]:hover:not(:disabled) {
+    border-color: #9ca3af;
+}
+
+.field input[type="text"]:focus,
+.field input[type="password"]:focus,
+.field input[type="email"]:focus {
+    border-color: #6D28D9;
+    outline: none;
+    box-shadow: none;
+}
+
+.field input:disabled {
+    background: #f9fafb;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.field input::placeholder {
+    color: #9ca3af;
+}
+
+/* Chrome/Safari autofill sarı background'ını kaldır */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
+    -webkit-text-fill-color: #111827 !important;
+}
+
+/* ======= Channel selection (radio olarak kart stili) ================== */
+
+.channel-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.channel-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: #ffffff;
+}
+
+.channel-option:hover {
+    border-color: #9ca3af;
+    background: #f9fafb;
+}
+
+.channel-option.is-selected {
+    border-color: #6D28D9;
+    background: #F5F3FF;
+}
+
+.channel-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: #6D28D9;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.channel-option input[type="radio"]:disabled {
+    cursor: not-allowed;
+}
+
+.channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+}
+
+.channel-sub {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+/* ======= Submit button ================================================= */
+
+.submit-btn {
+    margin-top: 8px;
+    padding: 12px 16px;
+    background: #6D28D9;
+    color: white;
+    border: 1px solid #5B21B6;
+    font-weight: 500;
+    font-size: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: inherit;
+}
+
+.submit-btn:hover:not(:disabled) {
+    background: #5B21B6;
+}
+
+.submit-btn:active:not(:disabled) {
+    transform: scale(0.99);
+}
+
+.submit-btn:disabled {
+    background: #a78bfa;
+    border-color: #a78bfa;
+    cursor: not-allowed;
+}
+
+/* Submit button görünümünde bir <a> tag (success ekranındaki "Girişe git") */
+.submit-btn-link {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 24px;
+    background: #6D28D9;
+    color: white !important;
+    border: 1px solid #5B21B6;
+    font-weight: 500;
+    font-size: 15px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.submit-btn-link:hover {
+    background: #5B21B6;
+    color: white !important;
+    text-decoration: none;
+}
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ======= Success panel (confirmation) ================================= */
+
+.success-panel {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.success-icon {
+    font-size: 48px;
+    color: #10B981;
+    margin-bottom: 12px;
+    line-height: 1;
+}
+
+.success-panel h2 {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 12px;
+    color: #111827;
+}
+
+.success-panel p {
+    font-size: 14px;
+    color: #4B5563;
+    line-height: 1.6;
+    margin: 0 0 12px;
+}
+
+.success-panel .sub-note {
+    font-size: 13px;
+    color: #6b7280;
+    background: #F9FAFB;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+/* ======= Footer link (girişe dön) ===================================== */
+
+.form-footer {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 13px;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.6;
+}
+
+.form-footer a,
+.back-link {
+    color: #6D28D9;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-footer a:hover,
+.back-link:hover {
+    color: #5B21B6;
+    text-decoration: underline;
+}
+
+/* ======= Responsive — mobile ========================================== */
+
+@media (max-width: 900px) {
+    .login-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .brand-pane {
+        min-height: auto;
+        padding: 2rem;
+    }
+
+    .brand-copy .headline {
+        font-size: 28px;
+    }
+
+    .brand-stats {
+        gap: 20px;
+        margin-top: 1.5rem;
+    }
+
+    .form-pane {
+        padding: 2rem 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .brand-pane {
+        padding: 1.5rem;
+    }
+
+    .brand-copy .headline {
+        font-size: 24px;
+    }
+
+    .brand-copy .sub {
+        font-size: 14px;
+    }
+
+    .brand-stats {
+        gap: 16px;
+    }
+
+    .brand-stats .stat-value {
+        font-size: 16px;
+    }
+
+    .brand-stats .stat-label {
+        font-size: 11px;
+    }
+}

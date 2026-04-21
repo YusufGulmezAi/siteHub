@@ -39,6 +39,7 @@ public class SiteHubDbContext(DbContextOptions<SiteHubDbContext> options) : DbCo
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     // ─── Audit (audit schema) ────────────────────────────────────────────
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
