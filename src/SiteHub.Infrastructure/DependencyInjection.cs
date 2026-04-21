@@ -9,6 +9,7 @@ using SiteHub.Application.Abstractions.Context;
 using SiteHub.Application.Abstractions.Notifications;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Sessions;
+using SiteHub.Application.Abstractions.Tenancy;
 using SiteHub.Infrastructure.Authentication;
 using SiteHub.Infrastructure.BackgroundJobs;
 using SiteHub.Infrastructure.Caching;
@@ -18,6 +19,7 @@ using SiteHub.Infrastructure.Context;
 using SiteHub.Infrastructure.Identity;
 using SiteHub.Infrastructure.Notifications;
 using SiteHub.Infrastructure.Persistence;
+using SiteHub.Infrastructure.Tenancy;
 using SiteHub.Infrastructure.Persistence.Interceptors;
 using SiteHub.Infrastructure.Persistence.Seed;
 using SiteHub.Infrastructure.Sessions;
@@ -100,6 +102,10 @@ public static class DependencyInjection
         services.AddSingleton<ITotpService, OtpNetTotpService>();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
         services.AddScoped<I2FARateLimiter, Redis2FARateLimiter>();
+
+        // ADR-0014 §1: Tenant context — scoped/circuit-scoped (multi-tab izolasyon)
+        services.AddScoped<ITenantContext, HttpTenantContext>();
+
         return services;
     }
 
