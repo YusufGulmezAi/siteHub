@@ -42,8 +42,34 @@ User=Veli, ContextType=Firm(X), Role=Acct → Firm X → X altındaki tüm Site'
 User=Ayşe, ContextType=Site(Y), Role=Mgr  → Sadece Site Y
 ```
 
-**Malik/Kiracı:** Bu akışa dahil DEĞİLDİR. Onlar ayrı bir portalda (`ResidentPortal`)
-yalnızca `Residency` tipinde Membership'e sahip olur. Management Portal'a giremez.
+**Malik/Kiracı (Sakin):** Bu akışa dahil DEĞİLDİR. Onlar ayrı bir portalda
+(`SiteHub.ResidentPortal`) çalışır ve Management Portal'a giremez.
+
+**Resident Portal özellikleri** (detay ADR-0014 §1.a):
+- Login: TCKN + şifre + (opsiyonel) 2FA
+- Cross-tenant view: Ali Kemal'in birden fazla yönetim firmasında (tenant'ta)
+  daireleri varsa **hepsini tek listede** görür
+- Context: `TenantContextType.Resident` + `ResidentPersonId = Ali.PersonId`
+- Erişim: sadece kendi `Residency`'leri, kendi `Invoice`'ları, kendi `Payment`'ları
+- Yönetim personeline ait görünüm (raporlar, karar defteri, diğer sakinler) **YOK**
+- Ödeme akışı: daire seçer → o site'nin PSP/Open Banking sayfasına yönlenir
+
+**Örnek:**
+```
+Ali Kemal login olur. RezidentPortal dashboard:
+
+🏠 Benim Daireler (3)
+┌──────────────────────────────────────────────────────┐
+│ ABC Yönetim → Yıldız Sitesi → 3 no'lu daire (Malik)  │
+│   Borç: 850 TL  [Öde]                                 │
+├──────────────────────────────────────────────────────┤
+│ XYZ Yönetim → Güneş Apartmanı → 12 no'lu (Kiracı)   │
+│   Borç: 0 TL                                          │
+├──────────────────────────────────────────────────────┤
+│ ABC Yönetim → Deniz Kompleksi → B-7 (Malik, işyeri)  │
+│   Borç: 2.300 TL  [Öde]                              │
+└──────────────────────────────────────────────────────┘
+```
 
 ### 2. Available Contexts Query
 

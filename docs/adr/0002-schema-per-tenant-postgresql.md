@@ -1,7 +1,27 @@
-# ADR-0002: Multi-Tenancy Stratejisi — Schema-per-Tenant (PostgreSQL)
+# ADR-0002 (ESKİ): Multi-Tenancy Stratejisi — Schema-per-Tenant (PostgreSQL)
 
-**Durum:** Kabul Edildi
-**Tarih:** 2026-04-19
+**Durum:** 🚫 SÜPERSEDE EDİLDİ (yerine `0002-multi-tenancy-rls-strategy.md`)
+**Tarih:** 2026-04-19 (orijinal), 2026-04-21 (süperseded)
+**Yerine geçen:** [ADR-0002-v2: Row-Level Security](./0002-multi-tenancy-rls-strategy.md)
+
+## Süpersede Notu (2026-04-21)
+
+Bu ADR, geliştirme süresi tahmininde gerçekçi olmadığı için süperseded edildi:
+
+- Schema-per-Site için tahmin edilen 2 hafta, gerçekte 3-4 hafta iş çıkıyor
+- Tek geliştirici için operasyonel yük çok yüksek (migration orchestrator,
+  backup per-tenant, connection pool yönetimi)
+- PostgreSQL Row-Level Security (RLS) aynı güvenlik seviyesini 3-4 günde
+  sağlayabilir
+
+**Bankacılık seviyesi güvenlik iddiasından taviz verilmedi** — RLS, bankacılık
+endüstrisinde yaygın kullanılan bir yaklaşımdır. Detaylı gerekçe yeni ADR'de.
+
+Aşağıdaki içerik **tarihsel referans** amaçlıdır, artık uygulanmıyor.
+
+---
+
+## (Eski içerik — uygulanmıyor)
 
 ## Bağlam
 
