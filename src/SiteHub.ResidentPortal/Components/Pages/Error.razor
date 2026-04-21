@@ -1,0 +1,25 @@
+@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Hata</PageTitle>
+
+<MudPaper Class="pa-6 mt-8" Elevation="2">
+    <MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">Bir hata oluştu</MudText>
+    <MudText Class="mb-4">
+        Lütfen daha sonra tekrar deneyin. Sorun devam ederse site yönetiminize bildirin.
+    </MudText>
+    @if (!string.IsNullOrEmpty(RequestId))
+    {
+        <MudText Typo="Typo.caption">Referans: <code>@RequestId</code></MudText>
+    }
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" Class="mt-4">
+        Ana Sayfa'ya dön
+    </MudButton>
+</MudPaper>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    private string? RequestId { get; set; }
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

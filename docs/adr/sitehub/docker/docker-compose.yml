@@ -1,0 +1,167 @@
+# SiteHub — Local Development Infrastructure
+#
+# Genelde doğrudan kullanma — bunun yerine PowerShell script'i kullan:
+#   ./scripts/dev-infra.ps1 up        (başlat)
+#   ./scripts/dev-infra.ps1 down      (durdur)
+#   ./scripts/dev-infra.ps1 reset     (sıfırla — veri silinir)
+#   ./scripts/dev-infra.ps1 status    (durum)
+#
+# Manuel kullanım için (script çalıştırılamıyorsa):
+#   docker compose --env-file ../.env up -d
+#   docker compose --env-file ../.env down
+
+name: sitehub-dev
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 17 — Ana veritabanı
+  # Schema-per-tenant stratejisi: tek DB, her site için ayrı schema
+  # ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: sitehub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sitehub}
+      POSTGRES_USER: ${POSTGRES_USER:-sitehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sitehub_dev_pw}
+      # UTF-8 + Türkçe collation için
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sitehub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sitehub-net
+
+  # ─────────────────────────────────────────────────────────────
+  # Redis 7 — Cache + SignalR backplane (scale-out için)
+  # ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sitehub-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-sitehub_dev_pw}
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-sitehub_dev_pw}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sitehub-net
+
+  # ─────────────────────────────────────────────────────────────
+  # Seq — Structured log viewer (dev için)
+  # UI: http://localhost:${SEQ_HOST_PORT:-5341}
+  # Serilog doğrudan buraya log basar
+  # ─────────────────────────────────────────────────────────────
+  seq:
+    image: datalust/seq:2024.3
+    container_name: sitehub-seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      # Dev'de authentication yok — UI'a direk erişim
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports:
+      - "${SEQ_HOST_PORT:-5341}:80"
+    volumes:
+      - seq_data:/data
+    networks:
+      - sitehub-net
+
+  # ─────────────────────────────────────────────────────────────
+  # MailHog — SMTP test server (dev için)
+  # UI:  http://localhost:${MAILHOG_HOST_PORT_UI:-8025}
+  # SMTP: localhost:${MAILHOG_HOST_PORT_SMTP:-1025}
+  # Gerçek e-posta gitmez, UI'da görüntülenir
+  # ─────────────────────────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: sitehub-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_HOST_PORT_SMTP:-1025}:1025"  # SMTP
+      - "${MAILHOG_HOST_PORT_UI:-8025}:8025"    # Web UI
+    networks:
+      - sitehub-net
+
+  # ─────────────────────────────────────────────────────────────
+  # MinIO — S3-uyumlu nesne depolama (sözleşme, fatura PDF, fotoğraf)
+  # Console: http://localhost:${MINIO_HOST_PORT_CONSOLE:-9001}
+  # API:     http://localhost:${MINIO_HOST_PORT_API:-9000}
+  # ─────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: sitehub-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-sitehub}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-sitehub_dev_pw}
+    ports:
+      - "${MINIO_HOST_PORT_API:-9000}:9000"
+      - "${MINIO_HOST_PORT_CONSOLE:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - sitehub-net
+
+  # ─────────────────────────────────────────────────────────────
+  # pgAdmin — PostgreSQL yönetim arayüzü
+  # UI: http://localhost:${PGADMIN_HOST_PORT:-5050}
+  # Login: .env'deki PGADMIN_DEFAULT_EMAIL / PGADMIN_DEFAULT_PASSWORD
+  # "SiteHub Postgres" sunucusu otomatik tanımlı gelir (servers.json)
+  # ─────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sitehub-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@sitehub.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-sitehub_dev_pw}
+      # Telemetri kapalı (dev'de hızlanır)
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_DISABLE_POSTFIX: "True"
+    ports:
+      - "${PGADMIN_HOST_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sitehub-net
+
+volumes:
+  postgres_data:
+    name: sitehub-postgres-data
+  redis_data:
+    name: sitehub-redis-data
+  seq_data:
+    name: sitehub-seq-data
+  minio_data:
+    name: sitehub-minio-data
+  pgadmin_data:
+    name: sitehub-pgadmin-data
+
+networks:
+  sitehub-net:
+    name: sitehub-network
+    driver: bridge

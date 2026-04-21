@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CONTRACTS KATMANI
+    - API request/response DTO'ları
+    - UI ve API arasında ortak shape'ler (ApiResponse<T>, ApiError)
+    - Shared enum'lar, validation attribute'ları
+    - Pure DTO — davranış yok, sadece veri
+    - Domain'e bağımlı DEĞİL (ters bağımlılık: UI/API/Mobil → Contracts)
+    - FluentValidation için rule class'ları da burada yer alabilir (sonraki turda)
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.Contracts</RootNamespace>
+    <AssemblyName>SiteHub.Contracts</AssemblyName>
+  </PropertyGroup>
+
+</Project>

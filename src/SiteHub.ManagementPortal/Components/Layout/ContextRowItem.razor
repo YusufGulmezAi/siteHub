@@ -1,0 +1,36 @@
+@using SiteHub.ManagementPortal.Services.Contexts
+
+@*
+    ContextRowItem — ContextSwitcher içinde bir satırı (firm, site, system bağlamı)
+    render eder. Ayrı dosyada olmasının sebebi: Razor markup'ta child component
+    olarak çağrılabilsin. Nested class olarak @code içinde tanımlanırsa markup
+    tag olarak kullanılamaz.
+*@
+
+<div class="context-row @(Indent ? "indented" : "")" @onclick="HandleClick">
+    <MudIcon Icon="@IconFor(Context.Level)" Size="Size.Small" Class="mr-2" />
+    <div class="flex-grow-1">
+        @Context.Name
+        @if (ShowParent && !string.IsNullOrEmpty(Context.ParentName))
+        {
+            <div class="context-row-parent">@Context.ParentName</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required ContextItem Context { get; set; }
+    [Parameter] public EventCallback<ContextItem> OnSelect { get; set; }
+    [Parameter] public bool Indent { get; set; }
+    [Parameter] public bool ShowParent { get; set; }
+
+    private Task HandleClick() => OnSelect.InvokeAsync(Context);
+
+    private static string IconFor(ContextLevel level) => level switch
+    {
+        ContextLevel.System => Icons.Material.Filled.AdminPanelSettings,
+        ContextLevel.Organization   => Icons.Material.Filled.Business,
+        ContextLevel.Site   => Icons.Material.Filled.Apartment,
+        _                   => Icons.Material.Filled.Help
+    };
+}

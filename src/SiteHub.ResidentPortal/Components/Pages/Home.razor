@@ -1,0 +1,36 @@
+@page "/"
+@rendermode InteractiveServer
+
+<PageTitle>SiteHub — Malik/Sakin Portalı</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Hoş Geldiniz</MudText>
+
+<MudText Typo="Typo.body1" Class="mb-6">
+    Bu, <strong>Malik/Sakin Portalı</strong>'nın walking skeleton sayfasıdır.
+    Yönetici portalından ayrı bir Blazor uygulaması olarak çalışır.
+</MudText>
+
+<MudCard Elevation="2" Class="mb-4">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" GutterBottom="true">Bu portalda yapabilecekleriniz (ileride):</MudText>
+        <MudList T="string" Dense="true">
+            <MudListItem Icon="@Icons.Material.Filled.Receipt">Aidat borçlarınızı görüntüleme</MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.CreditCard">Online ödeme yapma</MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.Message">Yönetime talep / şikayet iletme</MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.Campaign">Site duyurularını takip</MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.Description">Karar defteri ve evrakları okuma</MudListItem>
+        </MudList>
+    </MudCardContent>
+</MudCard>
+
+<MudAlert Severity="Severity.Success" Variant="Variant.Outlined">
+    <strong>Etkileşim testi:</strong> @_clickCount kere tıklandı.
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+               Class="ml-3" OnClick="@(() => _clickCount++)">
+        Tıkla
+    </MudButton>
+</MudAlert>
+
+@code {
+    private int _clickCount;
+}

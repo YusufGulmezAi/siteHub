@@ -1,0 +1,116 @@
+@page "/"
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard — SiteHub</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1" Style="font-weight:600">Dashboard</MudText>
+<MudText Typo="Typo.body2" Class="mb-6" Style="color:#6B7280">
+    SiteHub Management Portal — Walking Skeleton
+</MudText>
+
+@* ─── Stat Card'lar (AdminLTE small-box tarzı) ─── *@
+<MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 stat-card" Style="background:#2563EB; color:white; position:relative; overflow:hidden">
+            <MudText Typo="Typo.h3" Style="font-weight:700">5</MudText>
+            <MudText Typo="Typo.body2" Style="opacity:0.9">Aktif Kiracı</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Business"
+                     Style="position:absolute; right:-10px; bottom:-10px; font-size:6rem; opacity:0.18" />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 stat-card" Style="background:#10B981; color:white; position:relative; overflow:hidden">
+            <MudText Typo="Typo.h3" Style="font-weight:700">1.214</MudText>
+            <MudText Typo="Typo.body2" Style="opacity:0.9">Yönetilen Site</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Apartment"
+                     Style="position:absolute; right:-10px; bottom:-10px; font-size:6rem; opacity:0.18" />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 stat-card" Style="background:#F59E0B; color:white; position:relative; overflow:hidden">
+            <MudText Typo="Typo.h3" Style="font-weight:700">—</MudText>
+            <MudText Typo="Typo.body2" Style="opacity:0.9">Açık Talep</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Feedback"
+                     Style="position:absolute; right:-10px; bottom:-10px; font-size:6rem; opacity:0.18" />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 stat-card" Style="background:#EF4444; color:white; position:relative; overflow:hidden">
+            <MudText Typo="Typo.h3" Style="font-weight:700">—</MudText>
+            <MudText Typo="Typo.body2" Style="opacity:0.9">Geciken Aidat</MudText>
+            <MudIcon Icon="@Icons.Material.Filled.Warning"
+                     Style="position:absolute; right:-10px; bottom:-10px; font-size:6rem; opacity:0.18" />
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudGrid Class="mt-4">
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5" Elevation="1">
+            <MudText Typo="Typo.h6" GutterBottom="true">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Class="mr-2" />
+                Walking Skeleton — Çalışıyor
+            </MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem Icon="@Icons.Material.Filled.Check" IconColor="Color.Success">
+                    Blazor Server + Interactive Server render
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.Check" IconColor="Color.Success">
+                    MudBlazor 9 — AdminLTE-style theme
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.Check" IconColor="Color.Success">
+                    Menu search (Türkçe-duyarlı)
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.Check" IconColor="Color.Success">
+                    Context switcher + 1200 site demo verisi
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.Check" IconColor="Color.Success">
+                    Serilog + Seq yapılandırması
+                </MudListItem>
+            </MudList>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5" Elevation="1">
+            <MudText Typo="Typo.h6" GutterBottom="true">
+                <MudIcon Icon="@Icons.Material.Filled.RocketLaunch" Color="Color.Warning" Class="mr-2" />
+                Sonraki Adımlar
+            </MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem Icon="@Icons.Material.Filled.ArrowForward">
+                    ASP.NET Identity + TCKN/VKN/YKN login
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.ArrowForward">
+                    EF Core + PostgreSQL + schema-per-tenant
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.ArrowForward">
+                    MediatR pipeline (Logging + Validation + ContextAuth)
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.ArrowForward">
+                    Site / Malik / Bütçe / Tahakkuk / Tahsilat modülleri
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.ArrowForward">
+                    Resident Portal'ın özel tasarımı
+                </MudListItem>
+            </MudList>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-6">
+    <strong>Etkileşim testi:</strong>
+    <MudChip T="int" Color="Color.Primary" Size="Size.Small" Class="mx-2">@_clickCount</MudChip>
+    tıklama
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="ml-2"
+               OnClick="@(() => _clickCount++)">
+        Tıkla
+    </MudButton>
+    <MudText Typo="Typo.caption" Class="mt-2 d-block">
+        Buton çalışıyorsa SignalR circuit sağlıklı. Yukarıdaki context switcher'ı deneyin — 1200+ site arasında arama yapın.
+    </MudText>
+</MudAlert>
+
+@code {
+    private int _clickCount;
+}

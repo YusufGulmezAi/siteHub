@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    APPLICATION KATMANI
+    - Use case'leri (CQRS Command/Query handler'ları) içerir
+    - Domain üzerinde iş akışlarını orkestre eder
+    - EF Core'a bağımlı DEĞİL (sadece interface kullanır — IRepository, IUnitOfWork, IDbContext)
+    - Infrastructure'a bağımlı DEĞİL (ters: Infrastructure bu katmana bağımlıdır)
+    - Bağımlılık yönü: Application → Domain, Application → Shared
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.Application</RootNamespace>
+    <AssemblyName>SiteHub.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiteHub.Domain\SiteHub.Domain.csproj" />
+    <ProjectReference Include="..\SiteHub.Shared\SiteHub.Shared.csproj" />
+    <ProjectReference Include="..\SiteHub.Contracts\SiteHub.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+</Project>

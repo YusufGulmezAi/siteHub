@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SHARED (KERNEL) KATMANI
+    - Tüm katmanların kullanabileceği ortak tipler
+    - Result<T>, Error, abstractions (interface'ler)
+    - Framework'süz, saf C#
+    - Domain'e bağımlı DEĞİL (bağımsız bir kernel)
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.Shared</RootNamespace>
+    <AssemblyName>SiteHub.Shared</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" />
+  </ItemGroup>
+
+</Project>

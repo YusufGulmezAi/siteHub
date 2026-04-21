@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    INFRASTRUCTURE KATMANI
+    - EF Core, PostgreSQL, Identity, external service integrasyonları
+    - Application'daki interface'lerin implementasyonunu yapar
+    - "Dış dünya" ile Domain/Application arasındaki köprü
+    - Bağımlılık yönü: Infrastructure → Application → Domain
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.Infrastructure</RootNamespace>
+    <AssemblyName>SiteHub.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiteHub.Application\SiteHub.Application.csproj" />
+  </ItemGroup>
+
+  <!--
+    ASP.NET Core shared framework reference.
+    Neden gerekli: HttpCurrentConnectionInfo IHttpContextAccessor kullanır
+    (Microsoft.AspNetCore.Http). FrameworkReference paket yüklemez — ASP.NET
+    Core uygulaması tarafından zaten taşınan shared framework'e erişim sağlar.
+    Bu, Infrastructure'ı ASP.NET Core uygulamaları dışında kullanamayacağımız
+    anlamına gelir — ama zaten kullanmayacağız (Blazor Server + Web API hedefi).
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Scrutor" />
+    <PackageReference Include="StackExchange.Redis" />
+    <!--
+      Not: System.Security.Cryptography.Xml transitive pin'i KALDIRILDI.
+      FrameworkReference "Microsoft.AspNetCore.App" zaten güvenli sürümü getiriyor
+      (shared framework runtime'da). Ayrıca pin NU1510 uyarısı veriyordu.
+    -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Seed CSV dosyaları output klasörüne (bin/Debug/net10.0/Persistence/Seed/Data/)
+      kopyalanır. Böylece TurkeyGeographySeeder AppContext.BaseDirectory'den okuyabilir.
+      PreserveNewest: her build'de değişmişse kopyalanır (sık değişmeyen 156KB dosya).
+    -->
+    <Content Include="Persistence\Seed\Data\turkey-addresses.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

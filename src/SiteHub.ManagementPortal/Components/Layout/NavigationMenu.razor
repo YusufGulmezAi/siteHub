@@ -1,0 +1,49 @@
+@using SiteHub.ManagementPortal.Components.Navigation
+
+<div class="sidebar-menu">
+
+    <div class="sidebar-search">
+        <MudTextField
+            @bind-Value="_search"
+            @bind-Value:after="StateHasChanged"
+            Placeholder="Menüde ara..."
+            Variant="Variant.Outlined"
+            Margin="Margin.Dense"
+            Adornment="Adornment.Start"
+            AdornmentIcon="@Icons.Material.Filled.Search"
+            Immediate="true"
+            Clearable="true" />
+    </div>
+
+    <CascadingValue Value="_search" Name="MenuSearch">
+        <MudNavMenu Color="Color.Primary" Bordered="false" Class="sidebar-nav-list">
+            @{
+                var filtered = FilteredItems().ToList();
+            }
+            @foreach (var item in filtered)
+            {
+                <NavItemRenderer Item="item" />
+            }
+
+            @if (HasQuery && filtered.Count == 0)
+            {
+                <div class="pa-4 text-center">
+                    <MudIcon Icon="@Icons.Material.Filled.SearchOff" Color="Color.Default" />
+                    <MudText Typo="Typo.caption" Class="mt-2 d-block" Style="color:#9CA3AF">
+                        "@_search" için menüde sonuç yok
+                    </MudText>
+                </div>
+            }
+        </MudNavMenu>
+    </CascadingValue>
+</div>
+
+@code {
+    private string? _search;
+    private bool HasQuery => !string.IsNullOrWhiteSpace(_search);
+
+    private IEnumerable<MenuItem> FilteredItems()
+        => HasQuery
+            ? MenuTree.Items.Where(i => i.Matches(_search))
+            : MenuTree.Items;
+}

@@ -1,0 +1,198 @@
+@using SiteHub.ManagementPortal.Services.Contexts
+@inject DemoContextService ContextService
+
+@*
+   ContextSwitcher — AppBar'da gösterilen bağlam seçici
+
+   Özellikler:
+   - Açıldığında: Son 5 bağlam + arama kutusu + ağaç yapısı
+   - Arama: 3+ karakter girildiğinde düz liste (flat search results)
+   - Performans: Tüm 1200+ site asla tek seferde render edilmez;
+     kategori genişletildiğinde virtualize edilir
+*@
+
+<MudMenu
+    AnchorOrigin="Origin.BottomLeft"
+    TransformOrigin="Origin.TopLeft"
+    ActivationEvent="@MouseEvent.LeftClick"
+    PopoverClass="context-switcher-popover"
+    Dense="true">
+
+    <ActivatorContent>
+        <MudButton
+            Variant="Variant.Outlined"
+            Color="Color.Inherit"
+            StartIcon="@LevelIcon(_current?.Level)"
+            EndIcon="@Icons.Material.Filled.ArrowDropDown"
+            Class="context-switcher-button">
+            <div class="d-flex flex-column align-start">
+                <MudText Typo="Typo.caption" Style="opacity:0.7; line-height:1">
+                    @LevelLabel(_current?.Level)
+                </MudText>
+                <MudText Typo="Typo.body2" Style="line-height:1.2">
+                    @(_current?.Name ?? "Bağlam seç")
+                </MudText>
+            </div>
+        </MudButton>
+    </ActivatorContent>
+
+    <ChildContent>
+        <div class="context-switcher-panel" @onclick:stopPropagation="true">
+
+            @* ─── Arama kutusu ─── *@
+            <div class="pa-2">
+                <MudTextField
+                    @bind-Value="_query"
+                    @bind-Value:after="OnQueryChanged"
+                    Placeholder="Ara: kiracı, site adı..."
+                    Variant="Variant.Outlined"
+                    Margin="Margin.Dense"
+                    Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search"
+                    Immediate="true"
+                    Clearable="true" />
+            </div>
+
+            <MudDivider />
+
+            <div class="context-switcher-scroll">
+                @if (string.IsNullOrWhiteSpace(_query))
+                {
+                    @* ─── Son kullanılanlar ─── *@
+                    @if (ContextService.Recents.Any())
+                    {
+                        <MudListSubheader Class="px-3 py-1">
+                            <MudText Typo="Typo.overline">Son Kullanılan (5)</MudText>
+                        </MudListSubheader>
+                        @foreach (var ctx in ContextService.Recents)
+                        {
+                            <ContextRowItem Context="ctx" OnSelect="Select" />
+                        }
+                        <MudDivider />
+                    }
+
+                    @* ─── Ağaç yapısı: Sistem > Kiracılar > Siteler ─── *@
+                    <MudListSubheader Class="px-3 py-1">
+                        <MudText Typo="Typo.overline">Hiyerarşi</MudText>
+                    </MudListSubheader>
+
+                    @* System *@
+                    @foreach (var sys in ContextService.All.Where(c => c.Level == ContextLevel.System))
+                    {
+                        <ContextRowItem Context="sys" OnSelect="Select" />
+                    }
+
+                    @* Firm'ler — her biri expandable *@
+                    @foreach (var firm in ContextService.All.Where(c => c.Level == ContextLevel.Organization))
+                    {
+                        <div class="context-firm">
+                            <div class="context-firm-header" @onclick="() => ToggleFirm(firm.Id)">
+                                <MudIcon
+                                    Icon="@(_expandedFirms.Contains(firm.Id)
+                                            ? Icons.Material.Filled.ExpandLess
+                                            : Icons.Material.Filled.ExpandMore)"
+                                    Size="Size.Small" />
+                                <MudIcon Icon="@Icons.Material.Filled.Business"
+                                         Size="Size.Small" Color="Color.Primary" Class="mx-2" />
+                                <span class="flex-grow-1" @onclick:stopPropagation="true"
+                                      @onclick="() => Select(firm)">@firm.Name</span>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text">
+                                    @ContextService.SitesOfOrganization(firm.Id).Count
+                                </MudChip>
+                            </div>
+                            @if (_expandedFirms.Contains(firm.Id))
+                            {
+                                <div class="context-firm-sites">
+                                    <Virtualize Items="@ContextService.SitesOfOrganization(firm.Id).ToList()"
+                                                Context="site" ItemSize="36">
+                                        <ContextRowItem Context="site" OnSelect="Select" Indent="true" />
+                                    </Virtualize>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    @* ─── Arama sonuçları: düz liste ─── *@
+                    @if (_searchResults.Count == 0)
+                    {
+                        <div class="pa-4 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.SearchOff"
+                                     Color="Color.Default" Size="Size.Large" />
+                            <MudText Typo="Typo.body2" Class="mt-2">
+                                "@_query" için sonuç bulunamadı
+                            </MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudListSubheader Class="px-3 py-1">
+                            <MudText Typo="Typo.overline">
+                                @_searchResults.Count sonuç@(_searchResults.Count >= 50 ? " (ilk 50)" : "")
+                            </MudText>
+                        </MudListSubheader>
+                        @foreach (var ctx in _searchResults)
+                        {
+                            <ContextRowItem Context="ctx" OnSelect="Select" ShowParent="true" />
+                        }
+                    }
+                }
+            </div>
+        </div>
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Parameter] public EventCallback<ContextItem> OnContextChanged { get; set; }
+
+    private ContextItem? _current;
+    private string? _query;
+    private List<ContextItem> _searchResults = [];
+    private readonly HashSet<string> _expandedFirms = [];
+
+    protected override void OnInitialized()
+    {
+        // İlk açılışta Sistem bağlamı seçili
+        _current = ContextService.All.FirstOrDefault(c => c.Level == ContextLevel.System);
+    }
+
+    private void OnQueryChanged()
+    {
+        _searchResults = (ContextService.Search(_query)).ToList();
+    }
+
+    private async Task Select(ContextItem ctx)
+    {
+        _current = ctx;
+        ContextService.MarkRecent(ctx.Id);
+        _query = null;
+        _searchResults.Clear();
+        _expandedFirms.Clear();
+        await OnContextChanged.InvokeAsync(ctx);
+    }
+
+    private void ToggleFirm(string firmId)
+    {
+        if (!_expandedFirms.Add(firmId))
+            _expandedFirms.Remove(firmId);
+    }
+
+    private static string LevelIcon(ContextLevel? level) => level switch
+    {
+        ContextLevel.System => Icons.Material.Filled.AdminPanelSettings,
+        ContextLevel.Organization   => Icons.Material.Filled.Business,
+        ContextLevel.Site   => Icons.Material.Filled.Apartment,
+        _                   => Icons.Material.Filled.Help
+    };
+
+    private static string LevelLabel(ContextLevel? level) => level switch
+    {
+        ContextLevel.System => "SİSTEM",
+        ContextLevel.Organization   => "KİRACI",
+        ContextLevel.Site   => "SİTE",
+        _                   => ""
+    };
+
+    // RowItem alt bileşeni artık ayrı dosyada: Components/Layout/ContextRowItem.razor
+}

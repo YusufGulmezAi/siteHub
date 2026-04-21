@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    MANAGEMENT PORTAL (Yönetici Portalı)
+    - Blazor Server Interactive mode
+    - Yönetim firması personeli, site yöneticileri için
+    - Auth: Cookie-based, ayrı bir auth scheme
+    - Layout: yönetici-odaklı, dashboard tarzı
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.ManagementPortal</RootNamespace>
+    <AssemblyName>SiteHub.ManagementPortal</AssemblyName>
+    <UserSecretsId>sitehub-management-portal</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiteHub.Infrastructure\SiteHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\SiteHub.Contracts\SiteHub.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.QuickGrid" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Seq" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Enrichers.Environment" />
+    <PackageReference Include="Serilog.Enrichers.Thread" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+</Project>

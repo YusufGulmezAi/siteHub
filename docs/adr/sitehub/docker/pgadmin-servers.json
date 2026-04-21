@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "SiteHub Postgres (Local Dev)",
+      "Group": "SiteHub",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "sitehub",
+      "Username": "sitehub",
+      "SSLMode": "prefer",
+      "Comment": "SiteHub lokal geliştirme veritabanı. Şifre: .env içinde POSTGRES_PASSWORD",
+      "SavePassword": false
+    }
+  }
+}

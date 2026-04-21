@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DOMAIN KATMANI
+    - En içteki, en saf katman
+    - HİÇBİR dış bağımlılığı yoktur (ne EF Core, ne ASP.NET, ne MediatR)
+    - Sadece iş mantığını, entity'leri, value object'leri, domain event'leri içerir
+    - Bir insan bu katmana bakıp sistemin ne iş yaptığını anlayabilmeli
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>SiteHub.Domain</RootNamespace>
+    <AssemblyName>SiteHub.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ardalis.SmartEnum" />
+  </ItemGroup>
+
+</Project>
