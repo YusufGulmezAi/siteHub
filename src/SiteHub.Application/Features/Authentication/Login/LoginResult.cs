@@ -29,6 +29,18 @@ public sealed record LoginResult
     /// </summary>
     public bool RequiresTwoFactor { get; init; }
 
+    /// <summary>
+    /// Yanl\u0131\u015f parola sonras\u0131 kalan deneme hakk\u0131 (0-5 aras\u0131nda).
+    /// <c>InvalidCredentials</c> durumunda doluyor. Generic (hesap yok) durumda 0.
+    /// </summary>
+    public int? AttemptsRemaining { get; init; }
+
+    /// <summary>
+    /// Hesap kilitlendiyse kilidin biti\u015f zaman\u0131 (UTC). UI kaç dakika kald\u0131\u011f\u0131n\u0131 hesaplar.
+    /// <c>AccountLocked</c> durumunda doluyor.
+    /// </summary>
+    public DateTimeOffset? LockedUntil { get; init; }
+
     public static LoginResult Success(
         SessionId sessionId,
         string deviceId,
@@ -47,6 +59,20 @@ public sealed record LoginResult
     {
         IsSuccess = false,
         FailureCode = code
+    };
+
+    public static LoginResult InvalidCredentialsWithHint(int attemptsRemaining) => new()
+    {
+        IsSuccess = false,
+        FailureCode = LoginFailureCode.InvalidCredentials,
+        AttemptsRemaining = attemptsRemaining
+    };
+
+    public static LoginResult LockedWithHint(DateTimeOffset until) => new()
+    {
+        IsSuccess = false,
+        FailureCode = LoginFailureCode.AccountLocked,
+        LockedUntil = until
     };
 }
 

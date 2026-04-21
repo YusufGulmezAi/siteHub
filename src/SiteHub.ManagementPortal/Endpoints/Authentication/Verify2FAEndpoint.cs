@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
+using SiteHub.Application.Abstractions.Authentication;
 using SiteHub.Application.Abstractions.Context;
 using SiteHub.Application.Features.Authentication.TwoFactor;
 
@@ -31,6 +33,7 @@ public static class Verify2FAEndpoint
         RequestBody body,
         IMediator mediator,
         ICurrentUser currentUser,
+        IOptions<LoginSecurityOptions> options,
         CancellationToken ct)
     {
         if (!currentUser.IsAuthenticated || currentUser.SessionId is null)
@@ -48,13 +51,16 @@ public static class Verify2FAEndpoint
                 true, null, "Doğrulama başarılı."));
         }
 
+        var blockMinutes = options.Value.TwoFactorBlockMinutes;
+
         var message = result.FailureCode switch
         {
             Verify2FAFailureCode.SessionNotFound     => "Oturum bulunamadı. Yeniden giriş yapın.",
             Verify2FAFailureCode.SessionNotPending   => "Bu oturum için 2FA beklenmiyor.",
             Verify2FAFailureCode.AccountNotFound     => "Hesap bulunamadı.",
             Verify2FAFailureCode.TwoFactorNotEnabled => "2FA etkin değil.",
-            Verify2FAFailureCode.InvalidCode         => "Kod hatalı veya süresi dolmuş. Authenticator uygulamasından yeni kodu alın.",
+            Verify2FAFailureCode.InvalidCode         => BuildInvalidCodeMessage(result.AttemptsRemaining, blockMinutes),
+            Verify2FAFailureCode.RateLimited         => $"Çok sayıda yanlış deneme. Güvenlik için {blockMinutes} dakika bekleyip tekrar deneyin.",
             _                                        => "Doğrulama başarısız."
         };
 
@@ -63,4 +69,15 @@ public static class Verify2FAEndpoint
             Code: result.FailureCode.ToString(),
             Message: message));
     }
+
+    /// <summary>
+    /// Kalan deneme hakkını kullanıcıya belirten mesaj.
+    /// Türkçe çoğul: "1 hakkınız", "3 hakkınız" (Türkçe'de sayı sonrası kelime tekil kalır).
+    /// </summary>
+    private static string BuildInvalidCodeMessage(int attemptsRemaining, int blockMinutes) => attemptsRemaining switch
+    {
+        <= 0 => "Kod hatalı.",
+        1    => $"Kod hatalı. Son 1 deneme hakkınız kaldı, sonrasında hesap {blockMinutes} dakika kilitlenir.",
+        _    => $"Kod hatalı. {attemptsRemaining} deneme hakkınız kaldı."
+    };
 }

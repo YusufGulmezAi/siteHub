@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
+using SiteHub.Application.Abstractions.Authentication;
 using SiteHub.Application.Features.Authentication.Login;
 using SiteHub.Shared.Authentication;
 
@@ -39,12 +41,18 @@ public static class LoginEndpoint
         int ClosedOldSessionCount,
         bool RequiresTwoFactor);
 
-    public sealed record LoginErrorResponse(string Code, string Message);
+    public sealed record LoginErrorResponse(
+        string Code,
+        string Message,
+        int? AttemptsRemaining = null,
+        int? LockedForMinutes = null);
 
     private static async Task<IResult> HandleAsync(
         LoginRequest request,
         HttpContext http,
         IMediator mediator,
+        TimeProvider time,
+        IOptions<LoginSecurityOptions> securityOptions,
         CancellationToken ct)
     {
         // Client context
@@ -59,10 +67,20 @@ public static class LoginEndpoint
 
         if (!result.IsSuccess)
         {
+            var now = time.GetUtcNow();
+            int? lockedForMinutes = null;
+            if (result.LockedUntil.HasValue)
+            {
+                var remaining = result.LockedUntil.Value - now;
+                lockedForMinutes = Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes));
+            }
+
             return Results.Json(
                 new LoginErrorResponse(
                     Code: result.FailureCode.ToString(),
-                    Message: MapErrorMessage(result.FailureCode)),
+                    Message: BuildErrorMessage(result, lockedForMinutes, securityOptions.Value.LockoutDurationMinutes),
+                    AttemptsRemaining: result.AttemptsRemaining,
+                    LockedForMinutes: lockedForMinutes),
                 statusCode: MapErrorStatus(result.FailureCode));
         }
 
@@ -101,6 +119,33 @@ public static class LoginEndpoint
             ClosedOldSessionCount: result.ClosedOldSessions.Count,
             RequiresTwoFactor: result.RequiresTwoFactor));
     }
+
+    /// <summary>
+    /// Hata mesajını üretir — varsa kalan deneme hakkı veya kilit süresiyle
+    /// birlikte kullanıcıya bilgilendirici metin döner.
+    /// </summary>
+    private static string BuildErrorMessage(LoginResult result, int? lockedForMinutes, int lockoutMinutesForHint)
+    {
+        return result.FailureCode switch
+        {
+            LoginFailureCode.AccountLocked when lockedForMinutes is > 0
+                => $"Hesap güvenlik nedeniyle kilitlendi. {lockedForMinutes} dakika sonra tekrar deneyin.",
+
+            LoginFailureCode.InvalidCredentials when result.AttemptsRemaining is > 0
+                => BuildInvalidCredentialsMessage(result.AttemptsRemaining.Value, lockoutMinutesForHint),
+
+            _ => MapErrorMessage(result.FailureCode)
+        };
+    }
+
+    /// <summary>
+    /// Kalan deneme hakkı bilgisini ekleyen parola hatası mesajı.
+    /// </summary>
+    private static string BuildInvalidCredentialsMessage(int attemptsRemaining, int lockoutMinutes) => attemptsRemaining switch
+    {
+        1 => $"Kullanıcı bilgisi veya parola hatalı. Son 1 deneme hakkınız kaldı; sonrasında hesap {lockoutMinutes} dakika kilitlenir.",
+        _ => $"Kullanıcı bilgisi veya parola hatalı. {attemptsRemaining} deneme hakkınız kaldı."
+    };
 
     private static int MapErrorStatus(LoginFailureCode code) => code switch
     {

@@ -10,6 +10,7 @@ using SiteHub.Application.Abstractions.Notifications;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Sessions;
 using SiteHub.Infrastructure.Authentication;
+using SiteHub.Infrastructure.BackgroundJobs;
 using SiteHub.Infrastructure.Caching;
 using SiteHub.Infrastructure.CodeGeneration;
 using SiteHub.Infrastructure.Connection;
@@ -39,6 +40,10 @@ public static class DependencyInjection
         // ─── Temel servisler ────────────────────────────────────────────
         services.AddSingleton(TimeProvider.System);
         services.AddHttpContextAccessor();
+
+        // ─── Configuration: LoginSecurity (dev=1 dk, prod=15 dk) ────────
+        services.Configure<LoginSecurityOptions>(
+            configuration.GetSection(LoginSecurityOptions.SectionName));
 
         // ─── Audit altyapısı (ADR-0006) ─────────────────────────────────
         services.AddScoped<ICurrentUserService, NullCurrentUserService>();
@@ -75,6 +80,10 @@ public static class DependencyInjection
         // ─── Notifications (Email + SMS) ────────────────────────────────
         services.AddNotifications(configuration);
 
+        // ─── Background Jobs (Hangfire) ─────────────────────────────────
+        services.AddSiteHubHangfire(configuration);
+        services.AddScoped<PasswordResetTokenCleanupJob>();
+
         // ─── Seed servisleri ────────────────────────────────────────────
         services.AddScoped<TurkeyGeographySeeder>();
         services.AddScoped<PermissionSynchronizer>();
@@ -90,6 +99,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, AspNetPasswordHasher>();
         services.AddSingleton<ITotpService, OtpNetTotpService>();
         services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        services.AddScoped<I2FARateLimiter, Redis2FARateLimiter>();
         return services;
     }
 

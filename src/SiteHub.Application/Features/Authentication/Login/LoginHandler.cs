@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SiteHub.Application.Abstractions.Authentication;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Sessions;
@@ -32,14 +33,12 @@ namespace SiteHub.Application.Features.Authentication.Login;
 /// <list type="bullet">
 ///   <item>Person bulunamadı ⇒ sahte hash verify çalıştırılır (timing attack savunması)
 ///   + <c>InvalidCredentials</c> döner (enumeration attack savunması).</item>
-///   <item>Lockout eşiği: 5 yanlış deneme → 15 dk kilit.</item>
+///   <item>Lockout eşiği + süresi <see cref="LoginSecurityOptions"/> ile konfigüre edilir.
+///   Dev'de 1 dk, prod'da 15 dk (appsettings).</item>
 /// </list>
 /// </summary>
 public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
 {
-    private const int MaxFailedAttempts = 5;
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
-
     // Timing attack savunması için sahte hash (format v3, rastgele değer).
     // Person bulunamazsa bile sabit süre harcanması amacıyla verify çağırılır.
     private const string FakeHashForTimingDefense =
@@ -49,6 +48,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
     private readonly IPasswordHasher _passwordHasher;
     private readonly ISessionStore _sessionStore;
     private readonly TimeProvider _time;
+    private readonly LoginSecurityOptions _options;
     private readonly ILogger<LoginHandler> _logger;
 
     public LoginHandler(
@@ -56,12 +56,14 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         IPasswordHasher passwordHasher,
         ISessionStore sessionStore,
         TimeProvider time,
+        IOptions<LoginSecurityOptions> options,
         ILogger<LoginHandler> logger)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _sessionStore = sessionStore;
         _time = time;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -112,23 +114,27 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         {
             _logger.LogWarning("Hesap kilitli: {AccountId}, {Until}'a kadar.",
                 account.Id, account.LockoutUntil);
-            return LoginResult.Failure(LoginFailureCode.AccountLocked);
+            return LoginResult.LockedWithHint(account.LockoutUntil.Value);
         }
 
         // 5. Parola doğrula
         var verifyResult = _passwordHasher.Verify(account.PasswordHash, command.Password);
         if (verifyResult == PasswordVerificationResult.Failed)
         {
-            account.RecordFailedLogin(now, MaxFailedAttempts, LockoutDuration);
+            account.RecordFailedLogin(now, _options.MaxFailedAttempts, _options.LockoutDuration);
             await _db.SaveChangesAsync(ct);
 
             _logger.LogWarning(
                 "Login başarısız: yanlış parola (account={AccountId}, count={Count}).",
                 account.Id, account.FailedLoginCount);
 
-            return account.LockoutUntil.HasValue && now < account.LockoutUntil.Value
-                ? LoginResult.Failure(LoginFailureCode.AccountLocked)
-                : LoginResult.Failure(LoginFailureCode.InvalidCredentials);
+            // Kilitlendi mi yeni denemede?
+            if (account.LockoutUntil.HasValue && now < account.LockoutUntil.Value)
+                return LoginResult.LockedWithHint(account.LockoutUntil.Value);
+
+            // Kalan hak = threshold - şu anki sayaç
+            var remaining = Math.Max(0, _options.MaxFailedAttempts - account.FailedLoginCount);
+            return LoginResult.InvalidCredentialsWithHint(remaining);
         }
 
         // 6. Hesap durumu (ayrı hata kodları)

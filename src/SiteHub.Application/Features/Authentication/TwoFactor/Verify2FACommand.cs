@@ -14,10 +14,12 @@ public sealed record Verify2FACommand(Guid SessionId, string Code)
 
 public sealed record Verify2FAResult(
     bool IsSuccess,
-    Verify2FAFailureCode FailureCode = Verify2FAFailureCode.None)
+    Verify2FAFailureCode FailureCode = Verify2FAFailureCode.None,
+    int AttemptsRemaining = 0)
 {
     public static Verify2FAResult Success() => new(true);
-    public static Verify2FAResult Failure(Verify2FAFailureCode code) => new(false, code);
+    public static Verify2FAResult Failure(Verify2FAFailureCode code, int attemptsRemaining = 0)
+        => new(false, code, attemptsRemaining);
 }
 
 public enum Verify2FAFailureCode
@@ -27,5 +29,8 @@ public enum Verify2FAFailureCode
     SessionNotPending = 2,
     AccountNotFound = 3,
     TwoFactorNotEnabled = 4,
-    InvalidCode = 5
+    InvalidCode = 5,
+
+    /// <summary>\u00c7ok fazla yanl\u0131\u015f kod giri\u015fimi. 15 dk blok.</summary>
+    RateLimited = 6
 }

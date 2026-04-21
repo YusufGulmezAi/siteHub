@@ -74,6 +74,7 @@
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.1.0" />
     <PackageVersion Include="ErrorOr" Version="2.0.1" />
     <PackageVersion Include="Scrutor" Version="5.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Caching (Redis)">

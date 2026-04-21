@@ -4,6 +4,7 @@ using Serilog;
 using SiteHub.Application;
 using SiteHub.Infrastructure;
 using SiteHub.Infrastructure.Authentication;
+using SiteHub.Infrastructure.BackgroundJobs;
 using SiteHub.ManagementPortal.Components;
 using SiteHub.ManagementPortal.Endpoints;
 
@@ -139,6 +140,12 @@ try
     app.UseAuthorization();
 
     app.MapHealthChecks("/health");
+
+    // ─── Hangfire dashboard (/hangfire) — sadece localhost ───────────────────
+    app.UseSiteHubHangfireDashboard();
+
+    // Recurring job'ları kaydet (idempotent — her başlangıçta)
+    app.Services.RegisterSiteHubRecurringJobs();
 
     // ─── Minimal endpoint modülleri (Endpoints/ klasörü) ─────────────────────
     app.MapSiteHubEndpoints();
