@@ -67,30 +67,49 @@
             <PropertyColumn Property="x => x.Email" Title="E-posta" />
             <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
                 <CellTemplate>
+                    @*
+                        Durum badge'i — MudChip MudBlazor 9.0.0'da sessiz render problemi
+                        veriyor (Detail sayfasında da aynı sorun). div + inline style ile
+                        değiştirildi, palette CSS variable ile tema uyumlu.
+                    *@
                     @if (context.Item.IsActive)
                     {
-                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Aktif</MudChip>
+                        <div style="display: inline-flex; align-items: center; padding: 2px 10px;
+                                    border-radius: 999px; background-color: var(--mud-palette-success);
+                                    color: var(--mud-palette-success-contrastText); font-size: 0.75rem;
+                                    font-weight: 500; line-height: 1.2;">
+                            Aktif
+                        </div>
                     }
                     else
                     {
-                        <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">Pasif</MudChip>
+                        <div style="display: inline-flex; align-items: center; padding: 2px 10px;
+                                    border-radius: 999px; background-color: transparent;
+                                    border: 1px solid var(--mud-palette-action-disabled);
+                                    color: var(--mud-palette-text-secondary); font-size: 0.75rem;
+                                    font-weight: 500; line-height: 1.2;">
+                            Pasif
+                        </div>
                     }
                 </CellTemplate>
             </TemplateColumn>
             <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
                 <CellTemplate>
-                    @*
-                        Göz ikonu Detay sayfasına gidecek — o sayfa B.4'te yazılacak.
-                        Şimdilik Edit sayfasına yönleniyor (geçici).
-                    *@
-                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
-                                   Size="Size.Small"
-                                   OnClick="@(() => NavigateToEdit(context.Item.Id))"
-                                   aria-label="Detay (şimdilik düzenleme)" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Size="Size.Small"
-                                   OnClick="@(() => NavigateToEdit(context.Item.Id))"
-                                   aria-label="Düzenle" />
+                    @* F.6 B.4: Göz ikonu artık Detail sayfasına, kalem Edit'e ayrı ayrı gider. *@
+                    <MudTooltip Text="Detay">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                       Size="Size.Small"
+                                       Color="Color.Primary"
+                                       OnClick="@(() => NavigateToDetail(context.Item.Id))"
+                                       aria-label="Detay" />
+                    </MudTooltip>
+                    <MudTooltip Text="Düzenle">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       Color="Color.Default"
+                                       OnClick="@(() => NavigateToEdit(context.Item.Id))"
+                                       aria-label="Düzenle" />
+                    </MudTooltip>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -161,8 +180,6 @@
     }
 
     private void NavigateToCreate() => Nav.NavigateTo("/organizations/new");
-
-    // NavigateToDetail / NavigateToDetailRow — Detail sayfası B.4'te eklenecek.
-    // Şimdilik göz ikonu da edit'e yönleniyor (geçici).
+    private void NavigateToDetail(Guid id) => Nav.NavigateTo($"/organizations/{id}");
     private void NavigateToEdit(Guid id) => Nav.NavigateTo($"/organizations/{id}/edit");
 }

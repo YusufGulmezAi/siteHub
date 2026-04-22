@@ -1,0 +1,95 @@
+@*
+    Zorunlu reason girdili silme onay dialog'u.
+
+    KVKK + audit trail için kullanıcı silme sebebini açıkça girer.
+    PROJECT_STATE.md §6 B.4: "Delete confirm dialog — Reason zorunlu (audit trail için)".
+
+    Kullanım:
+        var parameters = new DialogParameters<DeleteConfirmDialog>
+        {
+            { x => x.Message, "\"ABC Yönetim\" firmasını silmek istediğinize emin misiniz?" },
+            { x => x.MinLength, 5 }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<DeleteConfirmDialog>("Firmayı Sil", parameters, options);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string reason)
+        {
+            await Api.DeleteAsync(id, new DeleteOrganizationRequest(reason));
+        }
+
+    Site/Resident silme UI'larında da aynen kullanılacak.
+*@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-4">@Message</MudText>
+
+        <MudTextField T="string"
+                      @bind-Value="_reason"
+                      Label="Silme sebebi"
+                      Placeholder="Örn: Müşteri hesabı kapandı, yanlış kayıt, test verisi..."
+                      Required="true"
+                      RequiredError="Silme sebebi zorunludur."
+                      HelperText="@($"En az {MinLength} karakter girin.")"
+                      Variant="Variant.Outlined"
+                      Lines="3"
+                      Immediate="true"
+                      Validation="@(new Func<string?, string?>(ValidateReason))"
+                      Counter="500"
+                      MaxLength="500" />
+
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-4">
+            <MudText Typo="Typo.body2">
+                Bu işlem <b>soft delete</b>'tir — kayıt veritabanında kalır, listelerde görünmez.
+                Silme sebebi audit log'una yazılır.
+            </MudText>
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Vazgeç</MudButton>
+        <MudButton Color="Color.Error"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Delete"
+                   OnClick="Confirm"
+                   Disabled="@(!IsValid)">
+            Sil
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string Message { get; set; } = "Bu kaydı silmek istediğinize emin misiniz?";
+    [Parameter] public int MinLength { get; set; } = 5;
+
+    private string? _reason;
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(_reason) &&
+        _reason.Trim().Length >= MinLength;
+
+    private string? ValidateReason(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "Silme sebebi zorunludur.";
+        if (value.Trim().Length < MinLength)
+            return $"En az {MinLength} karakter girin (şu an: {value.Trim().Length}).";
+        return null;
+    }
+
+    private void Confirm()
+    {
+        if (!IsValid) return;
+        MudDialog.Close(DialogResult.Ok(_reason!.Trim()));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

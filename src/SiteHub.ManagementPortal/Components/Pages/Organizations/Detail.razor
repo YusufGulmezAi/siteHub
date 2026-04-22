@@ -1,0 +1,383 @@
+@page "/organizations/{Id:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using SiteHub.Contracts.Organizations
+@using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared.Dialogs
+
+@inject IOrganizationsApi OrganizationsApi
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Firma Detayı - SiteHub</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    }
+    else if (_loadError)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4">
+                <MudText>@_errorMessage</MudText>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           OnClick="GoToList">
+                    Listeye Dön
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+    else if (_org is not null)
+    {
+        @* Basit breadcrumb — MudBreadcrumbs MudBlazor 9.0'da sessiz render problemi veriyordu,
+           primitif bileşenlerle değiştirildi (MudStack + MudLink + MudIcon + MudText) *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
+            <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
+                <MudText Typo="Typo.body2">Firmalar</MudText>
+            </MudLink>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                     Size="Size.Small"
+                     Style="color: var(--mud-palette-text-secondary);" />
+            <MudText Typo="Typo.body2"
+                     Style="color: var(--mud-palette-text-secondary);">
+                Detay
+            </MudText>
+        </MudStack>
+
+        @* Başlık + durum badge'i + action bar *@
+        <MudStack Row="true"
+                  Justify="Justify.SpaceBetween"
+                  AlignItems="AlignItems.Center"
+                  Class="mb-4"
+                  Wrap="Wrap.Wrap">
+
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h5">@_org.Name</MudText>
+                @* Durum badge'i — MudChip MudBlazor 9.0'da sessiz render problemi veriyordu,
+                   div + inline style + palette CSS variable ile değiştirildi (tema uyumlu) *@
+                @if (_org.IsActive)
+                {
+                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                                border-radius: 999px; background-color: var(--mud-palette-success);
+                                color: var(--mud-palette-success-contrastText); font-size: 0.875rem;
+                                font-weight: 500; line-height: 1;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Small"
+                                 Style="color: inherit;" />
+                        <span>Aktif</span>
+                    </div>
+                }
+                else
+                {
+                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                                border-radius: 999px; background-color: var(--mud-palette-warning);
+                                color: var(--mud-palette-warning-contrastText); font-size: 0.875rem;
+                                font-weight: 500; line-height: 1;">
+                        <MudIcon Icon="@Icons.Material.Filled.Block"
+                                 Size="Size.Small"
+                                 Style="color: inherit;" />
+                        <span>Pasif</span>
+                    </div>
+                }
+            </MudStack>
+
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
+                           Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           OnClick="GoToList"
+                           Disabled="_busy">
+                    Listeye Dön
+                </MudButton>
+
+                <MudButton StartIcon="@Icons.Material.Filled.Edit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="GoToEdit"
+                           Disabled="_busy">
+                    Düzenle
+                </MudButton>
+
+                @if (_org.IsActive)
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.Block"
+                               Variant="Variant.Outlined"
+                               Color="Color.Warning"
+                               OnClick="DeactivateAsync"
+                               Disabled="_busy">
+                        Pasif Yap
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton StartIcon="@Icons.Material.Filled.CheckCircle"
+                               Variant="Variant.Outlined"
+                               Color="Color.Success"
+                               OnClick="ActivateAsync"
+                               Disabled="_busy">
+                        Aktif Yap
+                    </MudButton>
+                }
+
+                <MudButton StartIcon="@Icons.Material.Filled.Delete"
+                           Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           OnClick="DeleteAsync"
+                           Disabled="_busy">
+                    Sil
+                </MudButton>
+            </MudStack>
+        </MudStack>
+
+        @* 3 kart: Firma / İletişim / Sistem *@
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 h-100" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3">Firma Bilgileri</MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <th style="width: 40%;">Firma Adı</th>
+                                <td>@_org.Name</td>
+                            </tr>
+                            <tr>
+                                <th>Ticari Ünvan</th>
+                                <td>@_org.CommercialTitle</td>
+                            </tr>
+                            <tr>
+                                <th>Firma Kodu</th>
+                                <td><code>@_org.Code</code></td>
+                            </tr>
+                            <tr>
+                                <th>VKN</th>
+                                <td>@_org.TaxId</td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 h-100" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3">İletişim</MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <th style="width: 40%;">Adres</th>
+                                <td>@OrEmDash(_org.Address)</td>
+                            </tr>
+                            <tr>
+                                <th>Telefon</th>
+                                <td>@OrEmDash(_org.Phone)</td>
+                            </tr>
+                            <tr>
+                                <th>E-posta</th>
+                                <td>@OrEmDash(_org.Email)</td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3">Sistem Bilgileri</MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <th style="width: 25%;">Oluşturulma Tarihi</th>
+                                <td>@FormatLocal(_org.CreatedAt)</td>
+                            </tr>
+                            <tr>
+                                <th>Oluşturan</th>
+                                <td>@OrEmDash(_org.CreatedByName)</td>
+                            </tr>
+                            @if (_org.UpdatedAt is not null)
+                            {
+                                <tr>
+                                    <th>Son Güncelleme</th>
+                                    <td>@FormatLocal(_org.UpdatedAt.Value)</td>
+                                </tr>
+                                <tr>
+                                    <th>Güncelleyen</th>
+                                    <td>@OrEmDash(_org.UpdatedByName)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+
+</MudContainer>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private OrganizationDetailDto? _org;
+    private bool _loading = true;
+    private bool _loadError = false;
+    private string _errorMessage = string.Empty;
+    private bool _busy = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // PROJECT_STATE §5 "Teknik Öğrenim 1": prerender aşamasında HttpClient auth
+        // cookie'leri taşımıyor. API çağrıları OnInitializedAsync yerine
+        // OnAfterRenderAsync(firstRender) içinde yapılmalı.
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = false;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            _org = await OrganizationsApi.GetByIdAsync(Id);
+            if (_org is null)
+            {
+                _loadError = true;
+                _errorMessage = "Aranan firma bulunamadı (silinmiş veya erişim yetkiniz yok olabilir).";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = true;
+            _errorMessage = $"Firma bilgisi yüklenemedi: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoToList() => Nav.NavigateTo("/organizations");
+    private void GoToEdit() => Nav.NavigateTo($"/organizations/{Id}/edit");
+
+    private async Task ActivateAsync()
+    {
+        var ok = await ConfirmSimpleAsync(
+            title: "Firmayı Aktif Yap",
+            message: $"\"{_org!.Name}\" firması aktif duruma getirilecek. Onaylıyor musunuz?",
+            confirmText: "Aktif Yap",
+            confirmColor: Color.Success,
+            confirmIcon: Icons.Material.Filled.CheckCircle);
+        if (!ok) return;
+
+        await ExecuteAsync(async () =>
+        {
+            await OrganizationsApi.ActivateAsync(Id);
+            Snackbar.Add("Firma aktif duruma getirildi.", Severity.Success);
+            await LoadAsync();
+        }, "Aktifleştirme sırasında hata oluştu");
+    }
+
+    private async Task DeactivateAsync()
+    {
+        var ok = await ConfirmSimpleAsync(
+            title: "Firmayı Pasif Yap",
+            message: $"\"{_org!.Name}\" firması pasif duruma getirilecek. İşlem daha sonra geri alınabilir.",
+            confirmText: "Pasif Yap",
+            confirmColor: Color.Warning,
+            confirmIcon: Icons.Material.Filled.Block);
+        if (!ok) return;
+
+        await ExecuteAsync(async () =>
+        {
+            await OrganizationsApi.DeactivateAsync(Id);
+            Snackbar.Add("Firma pasif duruma getirildi.", Severity.Success);
+            await LoadAsync();
+        }, "Pasifleştirme sırasında hata oluştu");
+    }
+
+    private async Task DeleteAsync()
+    {
+        // Reason zorunlu — DeleteConfirmDialog MudTextField validation ile en az 5 karakter alır.
+        var parameters = new DialogParameters<DeleteConfirmDialog>
+        {
+            { x => x.Message, $"\"{_org!.Name}\" firmasını silmek istediğinize emin misiniz?" },
+            { x => x.MinLength, 5 }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        var dialog = await DialogService.ShowAsync<DeleteConfirmDialog>("Firmayı Sil", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is null || result.Canceled) return;
+        if (result.Data is not string reason || string.IsNullOrWhiteSpace(reason)) return;
+
+        await ExecuteAsync(async () =>
+        {
+            await OrganizationsApi.DeleteAsync(Id, new DeleteOrganizationRequest(reason));
+            Snackbar.Add("Firma silindi.", Severity.Success);
+            Nav.NavigateTo("/organizations");
+        }, "Silme işlemi sırasında hata oluştu");
+    }
+
+    private async Task<bool> ConfirmSimpleAsync(
+        string title, string message, string confirmText, Color confirmColor, string? confirmIcon = null)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, message },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, confirmColor },
+            { x => x.ConfirmIcon, confirmIcon }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        return result is not null && !result.Canceled;
+    }
+
+    private async Task ExecuteAsync(Func<Task> action, string errorPrefix)
+    {
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{errorPrefix}: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    // ADR-0007: UTC storage, TR display. DateTimeOffset → LocalDateTime.
+    // Prod'da sunucu saat dilimi Europe/Istanbul ya da UTC olmalı.
+    private static string FormatLocal(DateTimeOffset utc)
+        => utc.LocalDateTime.ToString("dd.MM.yyyy HH:mm");
+
+    private static string OrEmDash(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}
