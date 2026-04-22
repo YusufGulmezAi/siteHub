@@ -96,3 +96,7 @@ upgrade-assistant.clef
 # macOS
 .AppleDouble
 .LSOverride
+
+# Debug log dosyalari (gecici probe log'lari)
+portal-*.log
+portal-log.txt
