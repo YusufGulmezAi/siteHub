@@ -66,4 +66,10 @@ public interface ITenantContext
     /// Basit shorthand.
     /// </summary>
     bool IsAuthenticated { get; }
+
+    /// <summary>
+    /// Login olmuş kullanıcının LoginAccount Id'si. RLS policy'lerinde "kendi kayıtlarına erişim"
+    /// (örn. kullanıcı kendi membership'lerini görür) için kullanılır. Unauthenticated ise null.
+    /// </summary>
+    Guid? LoginAccountId { get; }
 }

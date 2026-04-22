@@ -183,24 +183,50 @@ public static class InfrastructureInitializationExtensions
             await db.Database.MigrateAsync(ct);
             logger.LogInformation("Database migrate tamamlandı.");
 
-            // 1. Permission sync (reflection'dan gelir, seed değil "sync")
-            var permSync = sp.GetRequiredService<PermissionSynchronizer>();
-            await permSync.SynchronizeAsync(ct);
-
-            // 2. System roles (permissions'a bağımlı)
-            var rolesSeeder = sp.GetRequiredService<SystemRolesSeeder>();
-            await rolesSeeder.SeedAsync(ct);
-
-            // 3. Geography (bağımsız — sona alabiliriz, büyük veri seti)
-            var geoSeeder = sp.GetRequiredService<TurkeyGeographySeeder>();
-            await geoSeeder.SeedAsync(ct);
-
-            // 4. Development ortamında test kullanıcısı
-            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            if (string.Equals(env, "Development", StringComparison.OrdinalIgnoreCase))
+            // ─── Seed Bootstrap Mode (ADR-0014 §3.c) ─────────────────────────
+            // Seeder'lar RLS policy'leriyle korunan tablolara yazar (identity.roles vb.).
+            // HttpContext yok → HttpTenantContext boş değerler döner → RLS "hiçbir satır dönmez"
+            // davranışı gösterir. Bunu önlemek için connection'ı manuel açık tutup session
+            // variable'ları "bootstrap mode" olarak set ediyoruz. Seed bitince reset edilir.
+            //
+            // Alternatif C: Manuel SQL + OpenConnectionAsync (plan'da detaylı).
+            // DbContext tek connection'ı kullanır; seeder'lar aynı connection üzerinden yazar.
+            logger.LogInformation("Seed bootstrap mode aktive ediliyor (RLS bypass)...");
+            await db.Database.OpenConnectionAsync(ct);
+            try
             {
-                var devSeeder = sp.GetRequiredService<DevelopmentUsersSeeder>();
-                await devSeeder.SeedAsync(ct);
+                await db.Database.ExecuteSqlRawAsync(
+                    "SELECT set_config('app.is_admin_impersonating', 'true', false), " +
+                    "       set_config('app.is_system_user', 'true', false);", ct);
+
+                // 1. Permission sync (reflection'dan gelir, seed değil "sync")
+                var permSync = sp.GetRequiredService<PermissionSynchronizer>();
+                await permSync.SynchronizeAsync(ct);
+
+                // 2. System roles (permissions'a bağımlı)
+                var rolesSeeder = sp.GetRequiredService<SystemRolesSeeder>();
+                await rolesSeeder.SeedAsync(ct);
+
+                // 3. Geography (bağımsız — sona alabiliriz, büyük veri seti)
+                var geoSeeder = sp.GetRequiredService<TurkeyGeographySeeder>();
+                await geoSeeder.SeedAsync(ct);
+
+                // 4. Development ortamında test kullanıcısı
+                var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                if (string.Equals(env, "Development", StringComparison.OrdinalIgnoreCase))
+                {
+                    var devSeeder = sp.GetRequiredService<DevelopmentUsersSeeder>();
+                    await devSeeder.SeedAsync(ct);
+                }
+
+                logger.LogInformation("Seed bootstrap mode kapatılıyor (reset session vars)...");
+                await db.Database.ExecuteSqlRawAsync(
+                    "SELECT set_config('app.is_admin_impersonating', 'false', false), " +
+                    "       set_config('app.is_system_user', 'false', false);", ct);
+            }
+            finally
+            {
+                await db.Database.CloseConnectionAsync();
             }
         }
         catch (Exception ex)

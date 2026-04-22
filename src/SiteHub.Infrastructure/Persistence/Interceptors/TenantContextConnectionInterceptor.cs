@@ -84,6 +84,7 @@ public sealed class TenantContextConnectionInterceptor : DbConnectionInterceptor
         var orgId = _tenant.OrganizationId?.ToString() ?? "";
         var siteId = _tenant.SiteId?.ToString() ?? "";
         var residentId = _tenant.ResidentPersonId?.ToString() ?? "";
+        var loginAccountId = _tenant.LoginAccountId?.ToString() ?? "";
         var isImpersonating = _tenant.IsAdminImpersonating ? "true" : "false";
         var isSystem = _tenant.IsSystemUser ? "true" : "false";
 
@@ -96,6 +97,7 @@ public sealed class TenantContextConnectionInterceptor : DbConnectionInterceptor
               set_config('app.current_organization_id', @org_id, false),
               set_config('app.current_site_id', @site_id, false),
               set_config('app.resident_person_id', @resident_id, false),
+              set_config('app.current_login_account_id', @login_id, false),
               set_config('app.is_admin_impersonating', @is_imp, false),
               set_config('app.is_system_user', @is_sys, false);
         ";
@@ -104,16 +106,18 @@ public sealed class TenantContextConnectionInterceptor : DbConnectionInterceptor
         AddParam(cmd, "@org_id", orgId);
         AddParam(cmd, "@site_id", siteId);
         AddParam(cmd, "@resident_id", residentId);
+        AddParam(cmd, "@login_id", loginAccountId);
         AddParam(cmd, "@is_imp", isImpersonating);
         AddParam(cmd, "@is_sys", isSystem);
 
         await cmd.ExecuteNonQueryAsync(ct);
 
         _logger.LogDebug(
-            "Tenant context session variable set: type={Type}, org={Org}, site={Site}, impersonating={Imp}, system={Sys}.",
+            "Tenant context session variable set: type={Type}, org={Org}, site={Site}, login={Login}, impersonating={Imp}, system={Sys}.",
             contextType,
             orgId == "" ? "(null)" : orgId,
             siteId == "" ? "(null)" : siteId,
+            loginAccountId == "" ? "(null)" : loginAccountId,
             isImpersonating,
             isSystem);
     }
@@ -128,6 +132,7 @@ public sealed class TenantContextConnectionInterceptor : DbConnectionInterceptor
               set_config('app.current_organization_id', '', false),
               set_config('app.current_site_id', '', false),
               set_config('app.resident_person_id', '', false),
+              set_config('app.current_login_account_id', '', false),
               set_config('app.is_admin_impersonating', 'false', false),
               set_config('app.is_system_user', 'false', false);
         ";

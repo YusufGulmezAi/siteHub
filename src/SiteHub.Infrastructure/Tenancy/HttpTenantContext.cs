@@ -119,4 +119,14 @@ public sealed class HttpTenantContext : ITenantContext
                 .Any(m => m.ContextType == (int)MembershipContextType.System);
         }
     }
+
+    public Guid? LoginAccountId
+    {
+        get
+        {
+            var session = Session;
+            if (session is null || session.Pending2FA) return null;
+            return session.LoginAccountId.Value;
+        }
+    }
 }
