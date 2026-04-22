@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Tenancy;
@@ -10,41 +11,29 @@ namespace SiteHub.Infrastructure.Tenancy;
 /// <summary>
 /// <see cref="ISiteOrgResolver"/>'in IMemoryCache tabanlı implementasyonu.
 ///
+/// <para><b>Lazy DbContext:</b> Constructor'da direkt <c>ISiteHubDbContext</c> alınmaz —
+/// çünkü DbContext'in çözümü <c>TenantContextConnectionInterceptor</c> → <c>ITenantContext</c> →
+/// <c>HttpTenantContext</c> → <c>ISiteOrgResolver</c> döngüsünü tetikleyebilir. Bunun yerine
+/// <see cref="IServiceProvider"/> inject edilir, DbContext sadece cache miss'te resolve edilir.</para>
+///
 /// <para><b>Cache:</b> Global IMemoryCache (process-wide), 5 dk sliding TTL.</para>
-///
-/// <para><b>Thread-safety:</b> IMemoryCache thread-safe, SemaphoreSlim gerekmiyor.
-/// Ender bir duplicate DB sorgusu (concurrent initial load) performans problemi değil.</para>
-///
-/// <para><b>Key format:</b> <c>sitehub:site-org:{siteId}</c></para>
-///
-/// <para><b>RLS farkında DEĞİL:</b> Resolver DB'den okurken current tenant context
-/// session variable'larını dikkate almaz (AsNoTracking + global query filter
-/// bypass). Çünkü kullanıcı kendi Site context'indeyken Organization'ı çözmeye
-/// çalışıyor — chicken-and-egg. Bu yüzden EF Core query filter değil, ham SQL
-/// kullanır (.IgnoreQueryFilters() yeterli olmayabilir çünkü RLS policy de
-/// devrede olacak F.5'te).</para>
-///
-/// <para><b>F.5 ile etkileşim:</b> Site RLS policy'si yazıldığında resolver
-/// çalışmalı — policy "is_system_user=true OR org_id match" diye kurulduğu için
-/// login olmuş kullanıcı kendi Site'ını görebilir. Edge case: kullanıcı Site
-/// değişmeden hemen önce logout + başka Site'e geçtiğinde cache kirli olabilir.
-/// InvalidateCacheFor çağrısıyla yönetilir.</para>
+/// <para><b>Cache key:</b> <c>sitehub:site-org:{siteId}</c></para>
 /// </summary>
 internal sealed class SiteOrgResolver : ISiteOrgResolver
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private const string CacheKeyPrefix = "sitehub:site-org:";
 
-    private readonly ISiteHubDbContext _db;
+    private readonly IServiceProvider _services;
     private readonly IMemoryCache _cache;
     private readonly ILogger<SiteOrgResolver> _logger;
 
     public SiteOrgResolver(
-        ISiteHubDbContext db,
+        IServiceProvider services,
         IMemoryCache cache,
         ILogger<SiteOrgResolver> logger)
     {
-        _db = db;
+        _services = services;
         _cache = cache;
         _logger = logger;
     }
@@ -60,10 +49,10 @@ internal sealed class SiteOrgResolver : ISiteOrgResolver
 
         var sid = SiteId.FromGuid(siteId);
 
-        // IgnoreQueryFilters: soft-deleted Site'lar için de resolve et
-        // (cache tutarlılığı; DeletedAt kontrolü SoftDelete handler'ında
-        // InvalidateCacheFor çağrılarak yönetilir).
-        var orgId = await _db.Sites
+        // Lazy resolve — circular dependency'yi kırar
+        var db = _services.GetRequiredService<ISiteHubDbContext>();
+
+        var orgId = await db.Sites
             .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(s => s.Id == sid)
@@ -72,8 +61,6 @@ internal sealed class SiteOrgResolver : ISiteOrgResolver
 
         if (orgId is null)
         {
-            // Site yok — cache'leme (null'ları cachelemek tehlikeli, race condition'da
-            // yeni eklenen Site invisible kalır)
             _logger.LogDebug("Site {SiteId} resolver'da bulunamadı.", siteId);
             return null;
         }
