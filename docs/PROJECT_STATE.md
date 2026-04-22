@@ -119,9 +119,14 @@ System Admin RLS'yi bypass edebilir ama:
 | E-Pre G2-A4 | `public.organizations` RLS policy | ✅ | `48c0b89` |
 | — | Hijyen + Faz F.1 plani (ADR-0014 §8) | ✅ | `e51bc83` |
 | F.1 | Site domain entity + factory + 45 unit test | ✅ | `6882fd8` |
+| F.2 | Site EF Core config + migration (tenancy.sites) | ✅ | `9cb2296` |
+| F.3 | Site CRUD backend (7 endpoint, nested REST) | ✅ | `f0942c5` |
+| F.4 | HttpTenantContext Site→Org resolver (ISiteOrgResolver + IMemoryCache) | ✅ | `4164b72` |
+| F.4 hf | SiteOrgResolver lazy DbContext (circular DI fix) | ✅ | `1e98eba` |
+| F.5 | `tenancy.sites` RLS policy + Program.cs hijyen | ✅ | `d2a4443` |
 
-**Son commit:** `6882fd8` (2026-04-22 sabah)
-**Test durumu:** 146 test yeşil (101 + 45 Site). Build temiz.
+**Son commit:** `d2a4443` (2026-04-22)
+**Test durumu:** 146 test yeşil. Build temiz. Portal canlı çalışır durumda.
 
 ### E-Pre G2-A3 (Integration Tests) — Neden Silindi?
 
@@ -132,59 +137,82 @@ connection pool davranışı, EF Core DbCommand pipeline, session variable
 propagation). **Asıl kanıt mevcut:** docker exec manuel test + portal login
 + API verify. Test altyapısı olgunlaşınca ayrı araştırma iş emri ile dönülecek.
 
-### E-Pre G2 — Ertelenen Adımlar
+### Faz F.4 Hotfix — Öğrenilen Ders (Circular DI)
 
-- **A.2.b** `identity.memberships` RLS — login handler'ı `current_login_account_id`
-  session variable'ı set edecek şekilde değişmeli. Dikkatli iş, ayrı seans.
-- **A.4.b** Site → Organization resolver — Faz F.4'te yapılacak (Site entity
-  hazır, resolver artık yazılabilir). ADR-0014 §8'de detay.
+F.4'ün ilk hâli teoride doğruydu ama runtime'da **sessiz deadlock** çıktı:
+- `TenantContextConnectionInterceptor` her connection açılışında `ITenantContext` resolve ediyor
+- `HttpTenantContext` constructor `ISiteOrgResolver` istiyor
+- `SiteOrgResolver` constructor `ISiteHubDbContext` istiyor
+- DbContext oluşturulurken **interceptor tekrar çağrılıyor** → döngü
 
-## 6. Sıradaki İş — **Faz F.2: Site EF Core Config + Migration**
+Portal "Başlatılıyor..." yazdıktan sonra donuyordu. DI lock'a giriyor,
+exception bile log'a düşmüyordu. Teşhis: `Console.WriteLine` probe'ları
+(PROBE 1-10) ile aşama aşama nereye kadar gittiğini tespit.
 
-**Amaç:** Site entity'sini DB'ye bağla. `tenancy.sites` tablosu yarat, FK'lar,
-unique index'ler, soft-delete filtresi. Migration uygulanınca Site entity
-kullanıma hazır olur (CRUD F.3'te yazılır).
+**Çözüm (commit `1e98eba`):** SiteOrgResolver ctor'da `IServiceProvider`
+inject edilir, DbContext ancak cache miss'te `GetRequiredService` ile
+resolve edilir. O anda interceptor zaten tamamlanmış olur → döngü kırılır.
 
-### F.2 Kapsamı
+**Pattern olarak öğrendik:** Interceptor'da resolve edilen scoped service'ler,
+DbContext gerektiriyorsa `IServiceProvider` lazy kullanmalı.
 
-- [ ] `SiteConfiguration.cs` — EF Core mapping (Infrastructure)
-- [ ] `SiteHubDbContext.Sites` DbSet
-- [ ] Migration: `AddSitesTable`
-  - Tablo: `tenancy.sites` (yeni şema — "tenancy" mi "public" mi: **karar gerek**)
-  - FK: `organization_id → public.organizations(id)` (RESTRICT)
-  - FK: `province_id → geography.provinces(id)` (RESTRICT)
-  - FK: `district_id → geography.districts(id)` (RESTRICT, NULL allowed)
-  - Unique: `code` (global)
-  - Unique: `(organization_id, name)` opsiyonel (org içinde aynı isim olmasın)
-  - Index: `search_text` (ILIKE için deterministic collation)
-  - Soft-delete index: `WHERE deleted_at IS NULL`
-- [ ] Portal çalıştır → migration uygulanır → seed'ler etkilenmez (Site seed yok)
-- [ ] `docker exec` ile tablo oluştu mu doğrula
-- [ ] Commit + push
+### Faz F.5 Dev-Ortam Notu (Migration Senkronizasyonu)
 
-**Süre tahmini:** 30-45 dakika (yeni karar çok az, Organization pattern hazır)
+F.5'te migration uygulaması iki adımlı oldu:
+1. Boş migration oluşturuldu (`dotnet ef migrations add AddRlsToSites`)
+2. Zip ile SQL içeriği yazıldı, portal başlatılınca circular DI nedeniyle
+   donuyordu
+3. Circular fix öncesi: DB'ye SQL **manuel** uygulandı (`psql -f`),
+   `__ef_migrations_history`'ye manuel `INSERT` atıldı
+4. Circular fix sonrası: portal başlattığında "No migrations to apply"
+   gördü ve seed geçti
 
-### F.2 Öncesi Açık Karar
+**Dev-specific adım** — prod'da yapılmayacak. Production'da önce circular
+fix pushlanmış olur, migration normal akışla uygulanır.
 
-**Şema adı:** `tenancy.sites` mi `public.sites` mi?
-- `tenancy.sites` — daha temiz, tenant-related tablolar gruplanır, ileride
-  `tenancy.organizations` da taşınabilir (şimdi public.organizations).
-- `public.sites` — Organization ile tutarlı, tek şema.
-- **Öneri:** `tenancy.sites` — yeni şema, gelecekte temiz migration path.
+### Ertelenen Adımlar
 
-### Faz F Geri Kalan Alt Parçaları
+- **E-Pre G2-A.2.b** `identity.memberships` RLS — login handler'ı
+  `current_login_account_id` session variable'ı set edecek şekilde değişmeli.
+  Dikkatli iş, ayrı seans.
 
-- [x] **F.1** Site domain entity + factory + 45 test → `6882fd8`
-- [ ] **F.2** Site EF Core config + migration ← **BURADAYIZ**
-- [ ] **F.3** Site CRUD backend (CreateCommand + Query + endpoint'ler)
-- [ ] **F.4** HttpTenantContext Site → Org resolver (A.4.b entegre)
-- [ ] **F.5** `tenancy.sites` RLS policy (org-scoped)
-- [ ] **F.6** Site CRUD UI (MudDataGrid, form)
+## 6. Sıradaki İş — **Faz F.6: Site CRUD UI (MudBlazor)**
+
+**Amaç:** Organization UI pattern'inin tekrarı. `SitesList.razor`,
+`SiteForm.razor`, `SiteDetail.razor` sayfaları + navigation menüsü.
+Backend hazır (F.3), sadece frontend bağlama.
+
+### F.6 Kapsamı (tahmin)
+
+- [ ] `Pages/Sites/SitesList.razor` — MudDataGrid, paging, search
+- [ ] `Pages/Sites/SiteForm.razor` — Create/Edit formu (IL/İlçe dropdown,
+      IBAN validation, VKN-only TaxId)
+- [ ] `Pages/Sites/SiteDetail.razor` — readonly görünüm + actions
+- [ ] Navigation — menüye "Siteler" eklenti
+- [ ] URL pattern: `/organizations/{orgId}/sites` (list) + `/sites/{id}`
+      (detail) — nested REST ile hizalı
+- [ ] IL/İlçe cascading dropdown (API: geography endpoints zaten var mı
+      kontrol edilmeli — yoksa F.6.pre olarak geography query endpoint)
+
+### F.6 Öncesi Açık Karar
+
+**IL/İlçe dropdown'u nereden beslenecek?**
+- Geography için read-only query endpoint var mı kontrol et
+- Yoksa: yeni endpoint (F.6.pre) veya SQL raw (basit hack) — karar ver
+
+**Süre tahmini:** 1.5-2 seans (ilk seansta list+form, ikincisinde detail + polish)
+
+## 7. Faz F Kalan Alt Parçaları
+
+- [x] **F.1** Site domain entity + 45 test → `6882fd8`
+- [x] **F.2** EF Core config + migration → `9cb2296`
+- [x] **F.3** Site CRUD backend (nested REST) → `f0942c5`
+- [x] **F.4** HttpTenantContext Site→Org resolver → `4164b72` + `1e98eba`
+- [x] **F.5** `tenancy.sites` RLS policy → `d2a4443`
+- [ ] **F.6** Site CRUD UI (MudDataGrid, form) ← **BURADAYIZ**
 - [ ] **F.7** Backup automation (pg_dump + WAL, Hangfire)
 
-**Faz F toplam kalan süre tahmini:** 2-3 seans (F.2+F.3 bir seansta olabilir, F.6 ayrı)
-
-## 7. Sıradaki Fazlar (Faz F sonrası)
+## 8. Sıradaki Fazlar (Faz F sonrası)
 
 | Faz | İş |
 |---|---|
