@@ -64,36 +64,31 @@ public sealed class UpdateOrganizationHandler
         if (org is null)
             return UpdateOrganizationResult.Failure(UpdateOrganizationFailureCode.NotFound);
 
-        // VKN parse
+        // VKN validasyon (checksum OLMADAN)
         NationalId newTaxId;
         try
         {
-            newTaxId = NationalId.Parse(cmd.TaxId);
-            if (newTaxId.Type != NationalIdType.VKN)
-            {
-                return UpdateOrganizationResult.Failure(
-                    UpdateOrganizationFailureCode.InvalidTaxId,
-                    "VKN (10 haneli) gereklidir.");
-            }
+            newTaxId = NationalId.CreateVknRelaxed(cmd.TaxId);
         }
-        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        catch (InvalidNationalIdException ex)
         {
             return UpdateOrganizationResult.Failure(
-                UpdateOrganizationFailureCode.InvalidTaxId,
-                "VKN formatı geçersiz.");
+                UpdateOrganizationFailureCode.InvalidTaxId, ex.Message);
         }
 
-        // VKN başka firmaya ait mi? (kendisi hariç)
+        // VKN başka firmaya ait mi? (kendisi hariç) — çakışma varsa adı da dön
         if (!org.TaxId.Equals(newTaxId))
         {
-            var exists = await _db.Organizations
-                .AnyAsync(o => o.TaxId == newTaxId && o.Id != orgId, ct);
+            var conflicting = await _db.Organizations
+                .Where(o => o.TaxId == newTaxId && o.Id != orgId)
+                .Select(o => new { o.Name })
+                .FirstOrDefaultAsync(ct);
 
-            if (exists)
+            if (conflicting is not null)
             {
                 return UpdateOrganizationResult.Failure(
                     UpdateOrganizationFailureCode.TaxIdAlreadyExists,
-                    $"Bu VKN ({newTaxId.Value}) ile kayıtlı başka firma mevcut.");
+                    $"Bu VKN '{conflicting.Name}' firmasında kayıtlı.");
             }
         }
 

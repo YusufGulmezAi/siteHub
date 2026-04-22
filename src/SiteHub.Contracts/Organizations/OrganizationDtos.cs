@@ -24,3 +24,23 @@ public sealed record OrganizationListItemDto(
     string? Email,
     bool IsActive,
     DateTimeOffset CreatedAt);
+
+/// <summary>
+/// Organizasyon detay DTO'su. Form'u doldurmak için tam alan seti + audit.
+/// <para>Not: Application.Features.Organizations.OrganizationDetailDto'nun kopyası.</para>
+/// </summary>
+public sealed record OrganizationDetailDto(
+    Guid Id,
+    long Code,
+    string Name,
+    string CommercialTitle,
+    string TaxId,
+    string? Address,
+    string? Phone,
+    string? Email,
+    bool IsActive,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? UpdatedAt,
+    string? CreatedByName,
+    string? UpdatedByName);
+

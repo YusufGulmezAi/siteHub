@@ -1,0 +1,385 @@
+@*
+    Organizations/Form.razor — Create + Edit tek sayfa.
+
+    Routes:
+      /organizations/new          → Create mode
+      /organizations/{Id}/edit    → Edit mode (mevcut organization'ı yükler)
+
+    Form akışı:
+      - MudForm + client-side required validation
+      - Submit → IOrganizationsApi.CreateAsync / UpdateAsync
+      - Başarı: Snackbar + /organizations listesine dön
+      - Hata: Snackbar + form'da kal, hatayı göster
+*@
+@page "/organizations/new"
+@page "/organizations/{Id:guid}/edit"
+@rendermode InteractiveServer
+
+@using SiteHub.Contracts.Organizations
+@using SiteHub.ManagementPortal.Services.Api
+
+@inject IOrganizationsApi OrganizationsApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon") — SiteHub</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/organizations"))"
+                   aria-label="Geri"
+                   Size="Size.Small" />
+    <div>
+        <MudText Typo="Typo.h5" Style="font-weight:600">
+            @(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon")
+        </MudText>
+        @if (_isEditMode && _loadedDetail is not null)
+        {
+            <MudText Typo="Typo.caption" Style="color:#64748B">
+                Kod: @_loadedDetail.Code
+                · Oluşturma: @_loadedDetail.CreatedAt.ToString("dd.MM.yyyy HH:mm")
+            </MudText>
+        }
+    </div>
+</MudStack>
+
+@if (_initialLoadFailed)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+        Organizasyon yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.
+        <MudButton OnClick="@(() => Nav.NavigateTo("/organizations"))"
+                   Variant="Variant.Text" Size="Size.Small" Class="ml-2">
+            Listeye dön
+        </MudButton>
+    </MudAlert>
+}
+else if (_isEditMode && _loadedDetail is null && !_initialLoadFailed)
+{
+    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+    <MudText Class="ml-2 d-inline" Typo="Typo.body2">Yükleniyor...</MudText>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4" Style="max-width:960px;">
+        <MudForm @ref="_form" Model="_model" ValidationDelay="0">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Name"
+                                  Label="Firma Adı"
+                                  Required="true"
+                                  RequiredError="Firma adı zorunludur."
+                                  MaxLength="200"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.CommercialTitle"
+                                  Label="Ticari Ünvan"
+                                  Required="true"
+                                  RequiredError="Ticari ünvan zorunludur."
+                                  MaxLength="300"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.TaxId"
+                                  Label="VKN (Vergi Numarası)"
+                                  Required="true"
+                                  RequiredError="VKN zorunludur."
+                                  Validation="@(new Func<string, string?>(ValidateTaxId))"
+                                  MaxLength="10"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  HelperText="En fazla 10 rakam. 10'dan azsa başına otomatik 0 eklenir. Tamamı sıfır olamaz." />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Phone"
+                                  Label="Telefon"
+                                  Mask="@_phoneMask"
+                                  Validation="@(new Func<string?, string?>(ValidatePhone))"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  HelperText="0(5XX) XXX XX XX formatında girin." />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Email"
+                                  Label="E-posta"
+                                  Validation="@(new Func<string?, string?>(ValidateEmail))"
+                                  MaxLength="200"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  InputType="InputType.Email"
+                                  Immediate="true" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Address"
+                                  Label="Adres"
+                                  Lines="2"
+                                  MaxLength="500"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+
+            <MudStack Row="true" Spacing="2" Class="mt-4" Justify="Justify.FlexEnd">
+                <MudButton Variant="Variant.Text"
+                           OnClick="@(() => Nav.NavigateTo("/organizations"))"
+                           Disabled="_submitting"
+                           Size="Size.Small">
+                    İptal
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SubmitAsync"
+                           Disabled="_submitting"
+                           Size="Size.Small"
+                           StartIcon="@(_submitting ? null : (_isEditMode ? Icons.Material.Filled.Save : Icons.Material.Filled.Add))">
+                    @if (_submitting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Kaydediliyor...</span>
+                    }
+                    else
+                    {
+                        <span>@(_isEditMode ? "Kaydet" : "Oluştur")</span>
+                    }
+                </MudButton>
+            </MudStack>
+        </MudForm>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _isEditMode => Id.HasValue;
+    private MudForm? _form;
+    private FormModel _model = new();
+    private OrganizationDetailDto? _loadedDetail;
+    private bool _initialLoadFailed;
+    private bool _submitting;
+
+    // Türk cep telefonu mask: 0(5XX) XXX XX XX — 11 hane toplam
+    // CleanDelimiters=true → binding değeri sadece rakam ("05371234567")
+    private readonly IMask _phoneMask = new PatternMask("0(000) 000 00 00")
+    {
+        CleanDelimiters = true
+    };
+
+    private sealed class FormModel
+    {
+        public string Name { get; set; } = "";
+        public string CommercialTitle { get; set; } = "";
+        public string TaxId { get; set; } = "";
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // NOT: OnInitializedAsync DEĞİL — burada yükleriz.
+        // Sebep: `@rendermode InteractiveServer` default prerender=true.
+        // Prerender aşamasında HttpContext cookie'leri outgoing HttpClient'a
+        // tam olarak taşınmıyor → API 401/redirect → JSON değil HTML yanıt →
+        // deserialize patlar ("'S' is an invalid start of a value").
+        // OnAfterRenderAsync(firstRender=true) interactive circuit kurulduktan
+        // sonra çalışır, cookie'ler düzgün gider.
+        if (firstRender && _isEditMode && Id.HasValue)
+        {
+            await LoadExistingAsync(Id.Value);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadExistingAsync(Guid id)
+    {
+        try
+        {
+            var detail = await OrganizationsApi.GetByIdAsync(id);
+            if (detail is null)
+            {
+                _initialLoadFailed = true;
+                return;
+            }
+
+            _loadedDetail = detail;
+            _model = new FormModel
+            {
+                Name = detail.Name,
+                CommercialTitle = detail.CommercialTitle,
+                TaxId = detail.TaxId,
+                Address = detail.Address,
+                Phone = detail.Phone,
+                Email = detail.Email
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Yükleme hatası: {ex.Message}", Severity.Error);
+            _initialLoadFailed = true;
+        }
+    }
+
+    // ─── Validation ─────────────────────────────────────────────────────────
+
+    private static string? ValidateTaxId(string taxId)
+    {
+        if (string.IsNullOrWhiteSpace(taxId))
+            return null; // Required ayrı kural yakalar
+
+        // En fazla 10 hane (en az 1)
+        if (taxId.Length > 10)
+            return "VKN en fazla 10 hane olmalı.";
+
+        if (!taxId.All(char.IsDigit))
+            return "VKN sadece rakam içermeli.";
+
+        // Tamamı sıfır olamaz (ör: "0", "00", "0000000000")
+        if (taxId.All(c => c == '0'))
+            return "VKN tamamen sıfır olamaz.";
+
+        return null;
+    }
+
+    /// <summary>
+    /// Türk cep telefonu kuralları:
+    ///  - Mask'tan gelen değer CleanDelimiters=true → sadece rakamlar
+    ///  - 05 ile başlamalı
+    ///  - Tam 11 hane
+    ///  - Son 7 hanesi tamamen 0 olamaz (0(537) 000 00 00 kabul edilmez)
+    /// </summary>
+    private static string? ValidatePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return null; // Opsiyonel alan
+
+        // Mask CleanDelimiters=true olsa bile defensive check yapalım
+        var digits = new string(phone.Where(char.IsDigit).ToArray());
+
+        if (digits.Length != 11)
+            return "Telefon 11 haneli olmalı (0 ile başlayan 11 rakam).";
+
+        if (!digits.StartsWith("05", StringComparison.Ordinal))
+            return "Telefon 05 ile başlamalı (cep telefonu).";
+
+        // Son 7 hane (5XX'ten sonra): abonelik numarası, hepsi sıfır olamaz
+        var last7 = digits.Substring(4);
+        if (last7.All(c => c == '0'))
+            return "Telefon numarasının son 7 hanesi tamamen sıfır olamaz.";
+
+        return null;
+    }
+
+    private static string? ValidateEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return null; // Opsiyonel alan
+
+        // Basit ama sağlam regex: x@y.z gibi — en az 1 karakter + @ + domain + . + TLD
+        // Tam RFC 5322 değil; pratik kullanım için yeterli.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(
+                email,
+                @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
+        {
+            return "Geçerli bir e-posta adresi giriniz (ör: ornek@site.com).";
+        }
+
+        return null;
+    }
+
+    // ─── Submit ─────────────────────────────────────────────────────────────
+
+    private async Task SubmitAsync()
+    {
+        if (_form is null) return;
+
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        _submitting = true;
+        try
+        {
+            if (_isEditMode && Id.HasValue)
+                await UpdateAsync(Id.Value);
+            else
+                await CreateAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Beklenmeyen hata: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        var request = new CreateOrganizationRequest(
+            Name: _model.Name.Trim(),
+            CommercialTitle: _model.CommercialTitle.Trim(),
+            TaxId: NormalizeTaxId(_model.TaxId),
+            Address: string.IsNullOrWhiteSpace(_model.Address) ? null : _model.Address.Trim(),
+            Phone: string.IsNullOrWhiteSpace(_model.Phone) ? null : _model.Phone.Trim(),
+            Email: string.IsNullOrWhiteSpace(_model.Email) ? null : _model.Email.Trim());
+
+        var result = await OrganizationsApi.CreateAsync(request);
+
+        if (result.Success)
+        {
+            Snackbar.Add(
+                $"Organizasyon oluşturuldu. Kod: {result.Code}",
+                Severity.Success);
+            Nav.NavigateTo("/organizations");
+        }
+        else
+        {
+            Snackbar.Add(
+                result.Message ?? "Oluşturma başarısız.",
+                Severity.Error);
+        }
+    }
+
+    private async Task UpdateAsync(Guid id)
+    {
+        var request = new UpdateOrganizationRequest(
+            Name: _model.Name.Trim(),
+            CommercialTitle: _model.CommercialTitle.Trim(),
+            TaxId: NormalizeTaxId(_model.TaxId),
+            Address: string.IsNullOrWhiteSpace(_model.Address) ? null : _model.Address.Trim(),
+            Phone: string.IsNullOrWhiteSpace(_model.Phone) ? null : _model.Phone.Trim(),
+            Email: string.IsNullOrWhiteSpace(_model.Email) ? null : _model.Email.Trim());
+
+        var result = await OrganizationsApi.UpdateAsync(id, request);
+
+        if (result.Success)
+        {
+            Snackbar.Add(
+                result.Message ?? "Güncellendi.",
+                Severity.Success);
+            Nav.NavigateTo("/organizations");
+        }
+        else
+        {
+            Snackbar.Add(
+                result.Message ?? "Güncelleme başarısız.",
+                Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// VKN'ı 10 haneye normalize eder: kullanıcı "12345" girse bile backend'e
+    /// "0000012345" gönderir (Türkiye standart uygulaması).
+    /// </summary>
+    private static string NormalizeTaxId(string raw) => raw.Trim().PadLeft(10, '0');
+}

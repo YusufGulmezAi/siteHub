@@ -57,8 +57,7 @@
     @* Reusable tablo wrapper *@
     <SiteHubDataGrid T="OrganizationListItemDto"
                      ServerData="LoadServerData"
-                     @ref="_grid"
-                     OnRowClick="NavigateToDetailRow">
+                     @ref="_grid">
         <Columns>
             <PropertyColumn Property="x => x.Code" Title="Kod" />
             <PropertyColumn Property="x => x.Name" Title="Ad" />
@@ -80,10 +79,14 @@
             </TemplateColumn>
             <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
                 <CellTemplate>
+                    @*
+                        Göz ikonu Detay sayfasına gidecek — o sayfa B.4'te yazılacak.
+                        Şimdilik Edit sayfasına yönleniyor (geçici).
+                    *@
                     <MudIconButton Icon="@Icons.Material.Filled.Visibility"
                                    Size="Size.Small"
-                                   OnClick="@(() => NavigateToDetail(context.Item.Id))"
-                                   aria-label="Detay" />
+                                   OnClick="@(() => NavigateToEdit(context.Item.Id))"
+                                   aria-label="Detay (şimdilik düzenleme)" />
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    Size="Size.Small"
                                    OnClick="@(() => NavigateToEdit(context.Item.Id))"
@@ -159,13 +162,7 @@
 
     private void NavigateToCreate() => Nav.NavigateTo("/organizations/new");
 
-    private void NavigateToDetail(Guid id) => Nav.NavigateTo($"/organizations/{id}");
-
+    // NavigateToDetail / NavigateToDetailRow — Detail sayfası B.4'te eklenecek.
+    // Şimdilik göz ikonu da edit'e yönleniyor (geçici).
     private void NavigateToEdit(Guid id) => Nav.NavigateTo($"/organizations/{id}/edit");
-
-    private Task NavigateToDetailRow(OrganizationListItemDto item)
-    {
-        NavigateToDetail(item.Id);
-        return Task.CompletedTask;
-    }
 }

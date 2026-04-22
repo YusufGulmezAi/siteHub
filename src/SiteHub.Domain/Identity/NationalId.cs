@@ -57,6 +57,45 @@ public sealed class NationalId : ValueObject
     }
 
     /// <summary>
+    /// 10 haneli VKN oluşturur — <b>checksum doğrulamadan</b>. Yalnızca:
+    /// <list type="bullet">
+    ///   <item>10 hane uzunluk</item>
+    ///   <item>Yalnızca rakam</item>
+    ///   <item>Tamamı sıfır olmamalı</item>
+    /// </list>
+    /// <para>
+    /// Gelir İdaresi VKN checksum algoritması ilerde (banka entegrasyonu
+    /// fazında) tekrar açılabilir. Şu an dev test kolaylığı için rastgele
+    /// 10 hane kabul eder. Gerçek VKN doğrulaması banka/devlet tarafında
+    /// zaten tekrar yapılacağı için UI fazında sıkı kontrol ertelendi.
+    /// </para>
+    /// <para>
+    /// <c>CreateVkn</c> mevcut (Site.cs + Identity için checksum'lı). Bu
+    /// yeni metot <b>sadece Organization oluşturma/güncelleme</b> akışında
+    /// kullanılır.
+    /// </para>
+    /// </summary>
+    public static NationalId CreateVknRelaxed(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var clean = value.Trim();
+
+        if (clean.Length != 10)
+            throw new InvalidNationalIdException(
+                $"VKN 10 haneli olmalıdır: {clean}");
+
+        if (!clean.All(char.IsDigit))
+            throw new InvalidNationalIdException(
+                $"VKN sadece rakam içermelidir: {clean}");
+
+        if (clean.All(c => c == '0'))
+            throw new InvalidNationalIdException(
+                "VKN tamamen sıfır olamaz.");
+
+        return new NationalId(clean, NationalIdType.VKN);
+    }
+
+    /// <summary>
     /// 11 haneli YKN oluşturur. 99 ile başlar ve TCKN checksum'ı uygular.
     /// </summary>
     public static NationalId CreateYkn(string value)

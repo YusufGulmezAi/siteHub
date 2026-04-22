@@ -34,6 +34,13 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
             .IsRequired();
 
         // TaxId — VKN ZORUNLU (Faz E kararı), deterministic collation (unique index için)
+        //
+        // DB'den okurken CreateVknRelaxed kullanılır — checksum YOK. Sebep:
+        // Application katmanında CreateVknRelaxed ile yazıyoruz (dev test
+        // kolaylığı, rastgele 10 hane kabul), dolayısıyla DB'de checksum'dan
+        // geçmeyen VKN'ler de bulunabilir. Parse/CreateVkn (checksum'lı)
+        // kullansak okurken patlar. İlerde banka entegrasyonunda Gelir
+        // İdaresi servisi açılınca bu converter de sıkılaştırılır.
         builder.Property(o => o.TaxId)
             .HasColumnName("tax_id")
             .HasMaxLength(11)
@@ -41,7 +48,7 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organiz
             .UseCollation(SiteHubDbContext.TurkishCsAs)
             .HasConversion(
                 id => id.Value,
-                str => NationalId.Parse(str));
+                str => NationalId.CreateVknRelaxed(str));
 
         builder.Property(o => o.Address).HasColumnName("address").HasMaxLength(1000);
         builder.Property(o => o.Phone).HasColumnName("phone").HasMaxLength(30);

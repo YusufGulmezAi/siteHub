@@ -72,34 +72,31 @@ public sealed class CreateOrganizationHandler
     public async Task<CreateOrganizationResult> Handle(
         CreateOrganizationCommand cmd, CancellationToken ct)
     {
-        // 1. VKN parse ve validasyon
+        // 1. VKN validasyon (checksum OLMADAN — ilerde banka entegrasyonunda
+        //    Gelir İdaresi servisi açılınca tam doğrulama gelir)
         NationalId taxId;
         try
         {
-            taxId = NationalId.Parse(cmd.TaxId);
-            if (taxId.Type != NationalIdType.VKN)
-            {
-                return CreateOrganizationResult.Failure(
-                    CreateOrganizationFailureCode.InvalidTaxId,
-                    "Organizasyon için VKN (10 haneli) gereklidir, TCKN kabul edilmez.");
-            }
+            taxId = NationalId.CreateVknRelaxed(cmd.TaxId);
         }
-        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        catch (InvalidNationalIdException ex)
         {
             return CreateOrganizationResult.Failure(
-                CreateOrganizationFailureCode.InvalidTaxId,
-                "VKN formatı geçersiz (10 hane + checksum kontrolü başarısız).");
+                CreateOrganizationFailureCode.InvalidTaxId, ex.Message);
         }
 
-        // 2. VKN unique kontrolü (aktif kayıtlar arasında)
-        var taxIdExists = await _db.Organizations
-            .AnyAsync(o => o.TaxId == taxId, ct);
+        // 2. VKN unique kontrolü — çakışma varsa firma adını da dönelim
+        //    (UI kullanıcıya "X firmasında kayıtlı" mesajı gösterir)
+        var conflicting = await _db.Organizations
+            .Where(o => o.TaxId == taxId)
+            .Select(o => new { o.Name })
+            .FirstOrDefaultAsync(ct);
 
-        if (taxIdExists)
+        if (conflicting is not null)
         {
             return CreateOrganizationResult.Failure(
                 CreateOrganizationFailureCode.TaxIdAlreadyExists,
-                $"Bu VKN ({taxId.Value}) ile kayıtlı başka firma mevcut.");
+                $"Bu VKN '{conflicting.Name}' firmasında kayıtlı.");
         }
 
         // 3. Kod üret (6 haneli Feistel)

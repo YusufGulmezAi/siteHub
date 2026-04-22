@@ -74,7 +74,7 @@ public sealed class OrganizationEndpoints : IEndpointModule
         bool Success,
         Guid? OrganizationId,
         long? Code,
-        string? Code_,
+        string? FailureCode,
         string? Message);
 
     private static async Task<IResult> CreateAsync(
@@ -94,7 +94,7 @@ public sealed class OrganizationEndpoints : IEndpointModule
                     Success: true,
                     OrganizationId: result.OrganizationId,
                     Code: result.Code,
-                    Code_: null,
+                    FailureCode: null,
                     Message: null));
         }
 
@@ -110,7 +110,7 @@ public sealed class OrganizationEndpoints : IEndpointModule
             Success: false,
             OrganizationId: null,
             Code: null,
-            Code_: result.FailureCode.ToString(),
+            FailureCode: result.FailureCode.ToString(),
             Message: message));
     }
 
