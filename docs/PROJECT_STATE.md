@@ -114,45 +114,55 @@ System Admin RLS'yi bypass edebilir ama:
 | E-P1 | Organization CRUD backend (Code, VKN zorunlu, 7 endpoint, 28 test) | ✅ | `943455a` |
 | E-Pre G1 | ITenantContext + HttpTenantContext + api-tests.http | ✅ | `c02b495` |
 | E-Pre G2-A1 | TenantContextConnectionInterceptor (session variable setup) | ✅ | `6b42da6` |
+| E-Pre G2-A2 | `identity.roles` RLS policy + seed bootstrap mode | ✅ | `c43eb78` |
+| E-Pre G2-A3 | Integration tests (Testcontainers) — ⚠️ SİLİNDİ | ❌ | — |
+| E-Pre G2-A4 | `public.organizations` RLS policy | ✅ | `48c0b89` |
 
-**Son commit:** `6b42da6` (2026-04-21 akşamı)
+**Son commit:** `48c0b89` (2026-04-22 sabah)
 **Test durumu:** 101 test yeşil. Build temiz.
 
-## 6. Sıradaki İş — **Faz E-Pre Gün 2 A.2: RLS Policy'leri**
+### E-Pre G2-A3 (Integration Tests) — Neden Silindi?
 
-**Amaç:** `identity.roles` + `identity.memberships` tablolarına RLS policy'leri uygula.
-Gerçek izolasyon kanıtlanır ve `organizations` tablosu sonra özel durum olarak ele alınır.
+Testcontainers + EF Core + PostgreSQL RLS kombinasyonunda timing sorunu.
+`set_config(..., is_local=false)` session variable'ları test ortamında
+beklenen şekilde davranmadı. Kök neden tespit edilemedi (olasılıklar: Npgsql
+connection pool davranışı, EF Core DbCommand pipeline, session variable
+propagation). **Asıl kanıt mevcut:** docker exec manuel test + portal login
++ API verify. Test altyapısı olgunlaşınca ayrı araştırma iş emri ile dönülecek.
 
-### Gün 2 Alt Parçaları
+### E-Pre G2 — Ertelenen Adımlar
 
-- [x] **A.1** Interceptor + session variable altyapısı (commit `6b42da6`)
-- [ ] **A.2** RLS policy migration: `roles` + `memberships` + bypass çözümü  ← **BURADAYIZ**
-- [ ] **A.3** RLS violation integration testleri (2 org, sızıntı kanıtla)
-- [ ] **A.4** Organization CRUD handler'ları tenant context ile wire + endpoint test
+- **A.2.b** `identity.memberships` RLS — login handler'ı `current_login_account_id`
+  session variable'ı set edecek şekilde değişmeli. Dikkatli iş, ayrı seans.
+- **A.4.b** Site → Organization resolver — Site domain henüz yok (Faz F).
+  Resolver Faz F'te Site entity'si ile birlikte yapılacak. ADR-0014 §8'de
+  detaylı gerekçe var.
 
-### A.2 Açık Alt Konuları (başlamadan çözülmesi gerek)
+## 6. Sıradaki İş — **Faz F: Site Domain + CRUD + Backup**
 
-1. **Seed bypass stratejisi:** Seeder'lar RLS olmadan önce tabloları okur/yazar.
-   - Planlanan: `SystemBootstrapTenantContext` — `IsAdminImpersonating=true` + `IsSystemUser=true`
-   - Çözülmeyen: Bunu DI'da nasıl enjekte edelim? Seeder scope'unda override?
-2. **Policy SQL'i:** `roles` için 4 koşul, `memberships` için 5 koşul. Her biri test edilmeli.
-3. **FORCE RLS var mı?** Production'da evet, dev'de opsiyonel (config-based).
-4. **current_login_account_id** session variable'ı eksik — dün lokal'de hazırlandı, zip verilmedi.
+**Amaç:** Organization altına Site (apartman/kompleks) entity'sini eklemek.
+Multi-tenant hiyerarşisinin ikinci katmanı. Aynı zamanda **backup automation**
+bu faza girer — prod deploy öncesi mutlaka.
 
-### Gün 3 — Application Integration (A.4 sonrası başlar)
-- [ ] EF Core global query filter (defense-in-depth)
-- [ ] Command/Query handler'lara tenant context wiring (kısmen A.4'te)
-- [ ] Admin impersonation API (`/api/admin/impersonation/start`, `/end`, `/status`)
-- [ ] Banner component (Blazor, sabit pozisyon, kırmızı)
-- [ ] `audit.impersonation_events` + `audit.impersonation_access` tabloları
+### Faz F Alt Parçaları (öneri — başlarken netleşecek)
 
-### Gün 4 — Sıkılaştırma + Test
-- [ ] Hangfire job tenant context (parametre bazlı)
-- [ ] System Admin için zorunlu 2FA enforcement
-- [ ] İleri integration testleri
-- [ ] Impersonation audit testi
+- [ ] **F.1** Site domain entity + factory + invariant'lar (Domain, test'li)
+- [ ] **F.2** Site EF Core configuration + migration (Infrastructure)
+- [ ] **F.3** Site CRUD backend (CreateCommand, Query, endpoint'ler)
+- [ ] **F.4** HttpTenantContext Site → Org resolver (A.4.b buraya entegre)
+- [ ] **F.5** `tenancy.sites` tablosuna RLS policy (org-scoped)
+- [ ] **F.6** Site CRUD UI (MudDataGrid, form)
+- [ ] **F.7** Backup automation (pg_dump + WAL archive, Hangfire job)
 
-## 7. Sıradaki Fazlar (Faz E-Pre sonrası)
+**Süre tahmini:** 3-5 seans (her bir alt parça ~1 seans)
+
+### Yarın için — Faz E UI Alternatifi
+
+Faz F yerine Faz E (Organization CRUD UI) da başlatılabilir. Backend hazır,
+sadece MudBlazor form + grid kalmış. Daha kısa, daha görsel:
+**tahmini 1-2 seans**. Karar kullanıcı tarafından verilir.
+
+## 7. Sıradaki Fazlar (Faz F sonrası)
 
 | Faz | İş |
 |---|---|

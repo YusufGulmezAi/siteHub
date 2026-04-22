@@ -376,6 +376,65 @@ public async Task ImpersonationModundaHerQuerylogged()
 **Gün 3:** RLS policies migration + EF Core query filter + admin impersonation API
 **Gün 4:** Hangfire tenant context + testler + system admin zorunlu 2FA
 
+### 8. Uygulama Durumu (2026-04-22)
+
+| Adım | Commit | Durum |
+|---|---|---|
+| G1: `ITenantContext` + `HttpTenantContext` | `c02b495` | ✅ Prod |
+| G2-A1: `TenantContextConnectionInterceptor` (7 session variable) | `6b42da6` | ✅ Prod |
+| G2-A2: `identity.roles` RLS policy + seed bootstrap mode | `c43eb78` | ✅ Prod |
+| G2-A3: RLS integration tests (Testcontainers) | — | ❌ Denendi, silindi |
+| G2-A4: `public.organizations` RLS policy | `48c0b89` | ✅ Prod |
+| G2-A2.b: `identity.memberships` RLS (login handler değişikliği) | — | ⏳ Ertelendi |
+| G2-A4.b: Site → Organization resolver | — | ⏳ Ertelendi (aşağı bakın) |
+
+#### G2-A3 (Integration Tests) — Neden Silindi?
+
+Testcontainers + EF Core connection pooling + PostgreSQL RLS kombinasyonunda
+timing sorunu yaşandı. `set_config(..., is_local=false)` session variable'ları
+test ortamında beklenmeyen davranış gösterdi: her sorgudan önce açık SET komutu
+çalıştırılsa bile sonraki query'lerde değer uygulanmıyordu.
+
+Kök neden **tam tespit edilemedi**. Olasılıklar:
+- Npgsql connection pool davranışı
+- EF Core DbCommand execution pipeline
+- PostgreSQL session variable propagation
+
+**Karar:** Test bir sigorta; asıl kanıt zaten mevcut (docker exec manuel test,
+portal login + API verify). Test altyapısı olgunlaşınca (ayrı araştırma iş
+emri) geri dönülecek.
+
+#### G2-A4.b (Site → Organization Resolver) — Neden Ertelendi?
+
+Site domain entity'si **henüz yok** (Faz F kapsamı). Resolver yazılsa bile
+çağrılacağı bir Site membership tablosu yok — ölü kod olur.
+
+Faz F'te `Site` aggregate eklenirken, `Organization` parent FK'sı ile birlikte
+tasarlanacak. Resolver o zaman **doğal olarak** bağlanır:
+
+```csharp
+// HttpTenantContext içinde (gelecekte)
+public Guid? OrganizationId
+{
+    get
+    {
+        if (ActiveContext is null) return null;
+
+        return ActiveContext.ContextType switch
+        {
+            TenantContextType.Organization => ActiveContext.ContextId,
+            TenantContextType.Site => ResolveSiteParentOrg(ActiveContext.ContextId), // cache'li
+            _ => null
+        };
+    }
+}
+```
+
+Şu an için kabul edilen davranış: Site/Resident context'te `OrganizationId = null`,
+yani `organizations` tablosu hiç görünmez. Aktif Organization context yalnızca
+System Admin'in kullandığı flow, o da `is_system_user=true` ile zaten tümünü
+görür. **Fonksiyonel sorun yok.**
+
 ## Sonuçları
 
 **Olumlu:**
