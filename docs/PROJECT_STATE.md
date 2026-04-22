@@ -3,7 +3,7 @@
 > **Her yeni seansın başında bu dosyayı oku.** İçinde nerede kaldığımız, temel
 > kararlar ve bir sonraki adım var. Detaylar ADR'lerde.
 
-**Son güncelleme:** 2026-04-21
+**Son güncelleme:** 2026-04-22
 
 ---
 
@@ -110,35 +110,38 @@ System Admin RLS'yi bypass edebilir ama:
 | D2 | 2FA TOTP (setup, verify, disable) | ✅ | `b9f5308` |
 | D3 | Hangfire + 2FA rate limit + config-based lockout | ✅ | `5392585` |
 | — | Menü temizliği + ROADMAP.md | ✅ | `444bf6d` |
-| E-P1 | Organization CRUD backend (Code, VKN zorunlu, endpoint'ler) | 🟡 LOKAL'DE (push yok) | — |
+| — | ADR'ler: RLS mimarisi + ADR-0014 + PROJECT_STATE | ✅ | `de79d8b` |
+| E-P1 | Organization CRUD backend (Code, VKN zorunlu, 7 endpoint, 28 test) | ✅ | `943455a` |
+| E-Pre G1 | ITenantContext + HttpTenantContext + api-tests.http | ✅ | `c02b495` |
+| E-Pre G2-A1 | TenantContextConnectionInterceptor (session variable setup) | ✅ | `6b42da6` |
 
-**Dikkat:** Faz E-P1 kodu senin lokal çalışan portalında ama **commit edilmedi**.
-Portal `/api/organizations` endpoint'ini gösteriyor ama RLS olmadığı için henüz
-bu şekilde üretime çıkamaz.
+**Son commit:** `6b42da6` (2026-04-21 akşamı)
+**Test durumu:** 101 test yeşil. Build temiz.
 
-## 6. Sıradaki İş — **Faz E-Pre: RLS Implementation**
+## 6. Sıradaki İş — **Faz E-Pre Gün 2 A.2: RLS Policy'leri**
 
-**Amaç:** Multi-tenant RLS altyapısını kur. Organization API'sini RLS uyumlu hale getir.
+**Amaç:** `identity.roles` + `identity.memberships` tablolarına RLS policy'leri uygula.
+Gerçek izolasyon kanıtlanır ve `organizations` tablosu sonra özel durum olarak ele alınır.
 
-**Tahmini süre:** 4 iş günü
+### Gün 2 Alt Parçaları
 
-### Gün 1 — Tenant Context Infrastructure
-- [ ] `ITenantContext` interface (Application)
-- [ ] `CircuitTenantContext` implementation (Infrastructure, Blazor Server)
-- [ ] URL path routing: `/c/{contextType}/{contextId}/...`
-- [ ] Session ActiveContext genişletme (OrganizationId + SiteId + IsImpersonating)
-- [ ] Default context seçimi (login sonrası en yüksek seviye)
+- [x] **A.1** Interceptor + session variable altyapısı (commit `6b42da6`)
+- [ ] **A.2** RLS policy migration: `roles` + `memberships` + bypass çözümü  ← **BURADAYIZ**
+- [ ] **A.3** RLS violation integration testleri (2 org, sızıntı kanıtla)
+- [ ] **A.4** Organization CRUD handler'ları tenant context ile wire + endpoint test
 
-### Gün 2 — Database RLS
-- [ ] Migration: Tüm tenant-scoped tablolara `organization_id` / `site_id` kolon
-- [ ] Migration: `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`
-- [ ] Migration: RLS policy'leri (organization-scoped + site-scoped)
-- [ ] `TenantContextConnectionInterceptor` (her connection open'da set_config)
-- [ ] Fail-closed test: set edilmezse hiçbir satır dönmez
+### A.2 Açık Alt Konuları (başlamadan çözülmesi gerek)
 
-### Gün 3 — Application Integration
+1. **Seed bypass stratejisi:** Seeder'lar RLS olmadan önce tabloları okur/yazar.
+   - Planlanan: `SystemBootstrapTenantContext` — `IsAdminImpersonating=true` + `IsSystemUser=true`
+   - Çözülmeyen: Bunu DI'da nasıl enjekte edelim? Seeder scope'unda override?
+2. **Policy SQL'i:** `roles` için 4 koşul, `memberships` için 5 koşul. Her biri test edilmeli.
+3. **FORCE RLS var mı?** Production'da evet, dev'de opsiyonel (config-based).
+4. **current_login_account_id** session variable'ı eksik — dün lokal'de hazırlandı, zip verilmedi.
+
+### Gün 3 — Application Integration (A.4 sonrası başlar)
 - [ ] EF Core global query filter (defense-in-depth)
-- [ ] Command/Query handler'lara tenant context wiring
+- [ ] Command/Query handler'lara tenant context wiring (kısmen A.4'te)
 - [ ] Admin impersonation API (`/api/admin/impersonation/start`, `/end`, `/status`)
 - [ ] Banner component (Blazor, sabit pozisyon, kırmızı)
 - [ ] `audit.impersonation_events` + `audit.impersonation_access` tabloları
@@ -146,9 +149,8 @@ bu şekilde üretime çıkamaz.
 ### Gün 4 — Sıkılaştırma + Test
 - [ ] Hangfire job tenant context (parametre bazlı)
 - [ ] System Admin için zorunlu 2FA enforcement
-- [ ] RLS violation integration testleri (gerçek PG ile)
+- [ ] İleri integration testleri
 - [ ] Impersonation audit testi
-- [ ] Commit + push
 
 ## 7. Sıradaki Fazlar (Faz E-Pre sonrası)
 
