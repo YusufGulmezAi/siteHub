@@ -94,6 +94,25 @@ modüller eklenir — bu dosya bu yüzden ayrı tutulur.
 
 ---
 
+## Proje Genelinde UI / Tablo Standardı — Gelecek İşler
+
+Bu bölüm, **tüm liste sayfalarında** ortak olması gereken ama henüz yapılmamış
+özellikleri listeler. Uygulandığı yer: `SiteHubDataGrid<T>` wrapper
+(`Components/Shared/SiteHubDataGrid.razor`) — tek bir yerde yapılır, tüm liste
+sayfaları (Organization, Site, Unit, Person, …) otomatik kazanır.
+
+| # | Özellik | Not | Durum |
+|---|---|---|---|
+| 3 | **Kolon bazlı server-side filtre** | MudDataGrid'in `FilterDefinition`'ları backend handler'larına aktarılmalı. Her kolon için tip-güvenli filter builder gerek. İlk sürüm: text kolon `contains`. | 📋 |
+| 6 | **Excel (xlsx) + PDF export** | **Filtrelenmiş veri** + mevcut sıra korunarak. ClosedXML + QuestPDF (ikisi de MIT). Büyük veri için stream + temp file. Ayrı ADR yazılmalı: *Export Stratejisi*. | 📋 |
+| 7 | **Çok kelimeli AND arama** | Backend search: "güneş kadıköy" → `LIKE '%gunes%' AND LIKE '%kadikoy%'`. Her Query handler'ında `search` parametresi split edilip AND ile uygulanmalı (Organizations, Sites, Persons, Units, …). Proje genelinde tutarlı davranış. | 📋 |
+
+> **Not:** Bu özellikler F.6 kapsamında **bilinçli olarak ertelendi.** Öncelik önce
+> CRUD UI'nın tamamlanması. Yukarıdakiler F.6 bittikten sonra ayrı bir "UI Standart
+> İyileştirme" iterasyonunda tek seferde yapılır ki tüm sayfalar aynı anda kazansın.
+
+---
+
 ## Faz Tamamlama Özeti
 
 | Faz | İçerik | Durum |

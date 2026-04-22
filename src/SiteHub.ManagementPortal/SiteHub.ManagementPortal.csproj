@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="MudBlazor" />
+    <PackageReference Include="MudBlazor.Translations" />
     <PackageReference Include="Microsoft.AspNetCore.Components.QuickGrid" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
     <PackageReference Include="Serilog.AspNetCore" />

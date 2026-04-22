@@ -1,0 +1,120 @@
+@*
+    SiteHubDataGrid<T> — proje genelinde kullanılan standart tablo wrapper'ı.
+
+    Amaç: MudDataGrid'in üstüne ortak davranışlar ekler:
+      - Yatay scroll (kolon fazla olunca ekran sıkışmasın)
+      - Kolon göster/gizle (ShowColumnOptions)
+      - Tema uyumlu header (CSS: .sitehub-data-grid)
+      - Türkçe pager metinleri (TurkishMudLocalizer'dan gelir)
+      - Hover + row click cursor:pointer davranışı
+
+    Kullanım:
+        <SiteHubDataGrid T="MyDto"
+                         ServerData="LoadAsync"
+                         @ref="_grid"
+                         OnRowClick="NavigateToDetail">
+            <Columns>
+                <PropertyColumn Property="x => x.Name" Title="Ad" />
+                ...
+            </Columns>
+        </SiteHubDataGrid>
+
+    ROADMAP notları (sonraki sürümlerde eklenecek):
+      - 3. Kolon bazlı server-side filter builder
+      - 6. Excel + PDF export (filtrelenmiş veri + sıra korumalı)
+      - 7. Çok kelimeli AND arama — server-side (backend handler'larına)
+*@
+
+@typeparam T
+@attribute [CascadingTypeParameter(nameof(T))]
+
+@inject NavigationManager Nav
+
+<div class="sitehub-data-grid-container">
+    <MudDataGrid T="T"
+                 ServerData="ServerData"
+                 @ref="_dataGrid"
+                 Dense="true"
+                 Hover="true"
+                 Striped="false"
+                 Bordered="false"
+                 Elevation="0"
+                 ShowColumnOptions="true"
+                 ShowMenuIcon="true"
+                 Hideable="true"
+                 DragDropColumnReordering="true"
+                 ColumnsPanelReordering="true"
+                 Filterable="@Filterable"
+                 SortMode="SortMode.Multiple"
+                 Class="sitehub-data-grid"
+                 RowClick="HandleRowClick"
+                 RowClass="@(OnRowClick.HasDelegate ? "cursor-pointer" : "")">
+        <Columns>
+            @Columns
+        </Columns>
+        <NoRecordsContent>
+            @if (NoRecordsContent is null)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="ma-4">
+                    Gösterilecek kayıt yok.
+                </MudAlert>
+            }
+            else
+            {
+                @NoRecordsContent
+            }
+        </NoRecordsContent>
+        <LoadingContent>
+            <MudText Class="ma-4">Yükleniyor...</MudText>
+        </LoadingContent>
+        <PagerContent>
+            @* Pager metinleri artık MudBlazor.Translations paketinden geliyor
+               (Türkçe otomatik — CurrentUICulture 'tr-TR' olduğu için) *@
+            <MudDataGridPager T="T" PageSizeOptions="PageSizeOptions" />
+        </PagerContent>
+    </MudDataGrid>
+</div>
+
+@code {
+    private MudDataGrid<T>? _dataGrid;
+
+    /// <summary>Server-side data loader. MudDataGrid formatında.</summary>
+    [Parameter, EditorRequired]
+    public Func<GridState<T>, CancellationToken, Task<GridData<T>>> ServerData { get; set; } = default!;
+
+    /// <summary>Kolon tanımları (PropertyColumn, TemplateColumn, vb.).</summary>
+    [Parameter, EditorRequired]
+    public RenderFragment Columns { get; set; } = default!;
+
+    /// <summary>Kayıt bulunamadığında gösterilecek özel içerik (null ise default alert).</summary>
+    [Parameter]
+    public RenderFragment? NoRecordsContent { get; set; }
+
+    /// <summary>Satır tıklama callback'i. Varsa satır cursor:pointer olur.</summary>
+    [Parameter]
+    public EventCallback<T> OnRowClick { get; set; }
+
+    /// <summary>Kullanıcının seçebileceği sayfa boyutları.</summary>
+    [Parameter]
+    public int[] PageSizeOptions { get; set; } = new[] { 10, 20, 50, 100 };
+
+    /// <summary>
+    /// Kolon bazlı filtre aktif mi? Default: true (UI filter görünür, ama server-side
+    /// handler henüz desteklemiyor — ROADMAP 3 yapılınca tam çalışacak).
+    /// </summary>
+    [Parameter]
+    public bool Filterable { get; set; } = false;
+
+    /// <summary>Dışarıdan ReloadServerData çağrısı yapmak için.</summary>
+    public async Task ReloadAsync()
+    {
+        if (_dataGrid is not null)
+            await _dataGrid.ReloadServerData();
+    }
+
+    private async Task HandleRowClick(DataGridRowClickEventArgs<T> args)
+    {
+        if (OnRowClick.HasDelegate)
+            await OnRowClick.InvokeAsync(args.Item);
+    }
+}

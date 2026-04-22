@@ -1,0 +1,13 @@
+/*
+    SiteHubDataGrid<T> component-scoped styling.
+
+    NOT: Ana tablo stilleri (header rengi, hover, pager) `wwwroot/app.css` icinde
+    global olarak tanimlidir. Cunku Blazor CSS isolation (`.razor.css`) MudBlazor
+    component'lerinin ic DOM'una ulasamiyor — ::deep combinator bu senaryoda
+    tutarsiz calisiyor.
+
+    Bu dosya yalnizca wrapper'in kendi div'inin stilini icerir (gerektiginde
+    genisler).
+*/
+
+/* Bosluk — asagida gerektiginde component-scoped stil eklenebilir */

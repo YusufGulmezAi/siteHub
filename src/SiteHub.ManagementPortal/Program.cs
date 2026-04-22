@@ -1,5 +1,6 @@
 using System.Globalization;
 using MudBlazor.Services;
+using MudBlazor.Translations;
 using Serilog;
 using SiteHub.Application;
 using SiteHub.Infrastructure;
@@ -65,6 +66,11 @@ try
 
     // ─── 4. MudBlazor ────────────────────────────────────────────────────────
     builder.Services.AddMudServices();
+
+    // MudBlazor Türkçe lokalizasyon — resmi community-maintained paket
+    // (MudBlazor.Translations). 30+ dil destekliyor; CurrentUICulture 'tr-TR'
+    // set edildiği için (Program.cs başında) Türkçe çeviriler otomatik gelir.
+    builder.Services.AddMudTranslations();
 
     // ─── Infrastructure (EF Core + PostgreSQL) ───────────────────────────────
     builder.Services.AddInfrastructure(builder.Configuration);

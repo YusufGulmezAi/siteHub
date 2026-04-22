@@ -128,33 +128,47 @@
     private bool _isDarkMode;
     private bool _userMenuOpen;  // Avatar dropdown state
 
-    // AdminLTE 4 renk paleti: koyu sidebar + açık içerik
+    // SiteHub resmi palet — lacivert base + canlı accent (kurumsal / finansal ton)
+    // Değişiklik tek yerde: tüm portal genel teması, SiteHubDataGrid header, butonlar,
+    // stat kartlar (Home.razor Color.Primary/Success/Warning/Error enum'ları kullanır)
     private readonly MudTheme _theme = new()
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#2563EB",
-            Secondary = "#0EA5E9",
+            Primary = "#1E3A8A",          // Lacivert — ana renk
+            Secondary = "#0EA5E9",        // Canlı mavi — hover, link, info
+            Tertiary = "#F59E0B",         // Amber — önemli CTA, highlight
+            Success = "#10B981",          // Zümrüt — aktif, onaylı
+            Info = "#3B82F6",             // Mavi — bilgi
+            Warning = "#F59E0B",          // Amber — uyarı
+            Error = "#EF4444",            // Kırmızı — pasif/silinmiş, hata
+
             AppbarBackground = "#FFFFFF",
-            AppbarText = "#1F2937",
-            DrawerBackground = "#1F2937",
-            DrawerText = "#E5E7EB",
-            DrawerIcon = "#9CA3AF",
-            Background = "#F3F4F6",
+            AppbarText = "#1E293B",       // Koyu lacivert metin
+            DrawerBackground = "#172554", // Derin navy sidebar (blue-950)
+            DrawerText = "#E0E7FF",       // Indigo-100 — okunaklı açık mavi-beyaz
+            DrawerIcon = "#A5B4FC",       // Indigo-300 — açık mavi ikonlar
+            Background = "#F8FAFC",       // Açık gri sayfa zemini
             Surface = "#FFFFFF",
-            TextPrimary = "#1F2937",
-            TextSecondary = "#6B7280",
-            Divider = "#E5E7EB"
+            TextPrimary = "#1E293B",
+            TextSecondary = "#64748B",
+            Divider = "#E2E8F0"
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#3B82F6",
-            Secondary = "#06B6D4",
+            Primary = "#3B82F6",          // Daha parlak lacivert-mavi
+            Secondary = "#06B6D4",        // Cyan
+            Tertiary = "#F59E0B",
+            Success = "#10B981",
+            Info = "#60A5FA",
+            Warning = "#F59E0B",
+            Error = "#F87171",
+
             AppbarBackground = "#0F172A",
             AppbarText = "#F1F5F9",
-            DrawerBackground = "#0B1220",
-            DrawerText = "#E2E8F0",
-            DrawerIcon = "#94A3B8",
+            DrawerBackground = "#0C1433", // Daha koyu navy (light mode'un koyu versiyonu)
+            DrawerText = "#E0E7FF",
+            DrawerIcon = "#A5B4FC",
             Background = "#0F172A",
             Surface = "#1E293B"
         },

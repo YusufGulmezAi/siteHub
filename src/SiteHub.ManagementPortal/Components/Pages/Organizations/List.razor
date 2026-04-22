@@ -4,6 +4,7 @@
 @using SiteHub.Contracts.Common
 @using SiteHub.Contracts.Organizations
 @using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared
 
 @inject IOrganizationsApi OrganizationsApi
 @inject NavigationManager Nav
@@ -28,7 +29,7 @@
 
 <MudPaper Elevation="1" Class="pa-4">
 
-    @* Toolbar: arama + filter toggle *@
+    @* Toolbar: arama + durum filter *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
         <MudTextField T="string"
                       Value="_search"
@@ -45,23 +46,19 @@
 
         <MudSpacer />
 
-        <MudSwitch T="bool" @bind-Value="_includeInactive"
+        @* Default olarak "Aktif" seçili — aktif kayıtlar listelenir.
+           Switch kapalı ise pasifler de dahil edilir. *@
+        <MudSwitch T="bool" @bind-Value="_onlyActive"
                    @bind-Value:after="RefreshAsync"
                    Color="Color.Primary"
-                   Label="Pasifleri de göster" />
+                   Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
     </MudStack>
 
-    @* Data grid *@
-    <MudDataGrid T="OrganizationListItemDto"
-                 ServerData="LoadServerData"
-                 @ref="_dataGrid"
-                 Dense="true"
-                 Hover="true"
-                 Striped="false"
-                 Bordered="false"
-                 Elevation="0"
-                 RowClick="@((DataGridRowClickEventArgs<OrganizationListItemDto> e) => NavigateToDetail(e.Item.Id))"
-                 RowClass="cursor-pointer">
+    @* Reusable tablo wrapper *@
+    <SiteHubDataGrid T="OrganizationListItemDto"
+                     ServerData="LoadServerData"
+                     @ref="_grid"
+                     OnRowClick="NavigateToDetailRow">
         <Columns>
             <PropertyColumn Property="x => x.Code" Title="Kod" />
             <PropertyColumn Property="x => x.Name" Title="Ad" />
@@ -103,20 +100,13 @@
                 }
             </MudAlert>
         </NoRecordsContent>
-        <LoadingContent>
-            <MudText Class="ma-4">Yükleniyor...</MudText>
-        </LoadingContent>
-        <PagerContent>
-            <MudDataGridPager T="OrganizationListItemDto"
-                              PageSizeOptions="new[] { 10, 20, 50, 100 }" />
-        </PagerContent>
-    </MudDataGrid>
+    </SiteHubDataGrid>
 </MudPaper>
 
 @code {
-    private MudDataGrid<OrganizationListItemDto>? _dataGrid;
+    private SiteHubDataGrid<OrganizationListItemDto>? _grid;
     private string? _search;
-    private bool _includeInactive;
+    private bool _onlyActive = true;   // Default: sadece aktif kayıtlar
 
     private async Task<GridData<OrganizationListItemDto>> LoadServerData(
         GridState<OrganizationListItemDto> state, CancellationToken ct)
@@ -124,10 +114,10 @@
         try
         {
             var result = await OrganizationsApi.GetAllAsync(
-                page: state.Page + 1,   // MudDataGrid 0-indexed, API 1-indexed
+                page: state.Page + 1,
                 pageSize: state.PageSize,
                 search: string.IsNullOrWhiteSpace(_search) ? null : _search,
-                includeInactive: _includeInactive,
+                includeInactive: !_onlyActive,  // switch AÇIK = sadece aktif
                 ct: ct);
 
             return new GridData<OrganizationListItemDto>
@@ -138,7 +128,6 @@
         }
         catch (OperationCanceledException)
         {
-            // Grid başka load başlattığında veya navigation'da cancel normaldir
             return new GridData<OrganizationListItemDto>
             {
                 Items = Array.Empty<OrganizationListItemDto>(),
@@ -164,8 +153,8 @@
 
     private async Task RefreshAsync()
     {
-        if (_dataGrid is not null)
-            await _dataGrid.ReloadServerData();
+        if (_grid is not null)
+            await _grid.ReloadAsync();
     }
 
     private void NavigateToCreate() => Nav.NavigateTo("/organizations/new");
@@ -173,4 +162,10 @@
     private void NavigateToDetail(Guid id) => Nav.NavigateTo($"/organizations/{id}");
 
     private void NavigateToEdit(Guid id) => Nav.NavigateTo($"/organizations/{id}/edit");
+
+    private Task NavigateToDetailRow(OrganizationListItemDto item)
+    {
+        NavigateToDetail(item.Id);
+        return Task.CompletedTask;
+    }
 }
