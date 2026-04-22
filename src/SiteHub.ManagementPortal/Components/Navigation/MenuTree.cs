@@ -21,17 +21,17 @@ public static class MenuTree
     [
         new() { Title = "Ana Sayfa", Href = "/", Icon = Icons.Material.Filled.Dashboard },
 
-        // Faz E tamamlanınca buraya "Organizasyon" menüsü eklenecek:
-        // new()
-        // {
-        //     Title = "Organizasyon",
-        //     Icon = Icons.Material.Filled.AccountTree,
-        //     Children =
-        //     [
-        //         new() { Title = "Firmalar", Href = "/firms",
-        //                 Icon = Icons.Material.Filled.Business,
-        //                 RequiredPermission = "firm.view" },
-        //     ]
-        // },
+        new()
+        {
+            Title = "Tenant Yönetimi",
+            Icon = Icons.Material.Filled.AccountTree,
+            Children =
+            [
+                new() { Title = "Organizasyonlar", Href = "/organizations",
+                        Icon = Icons.Material.Filled.Business },
+                new() { Title = "Siteler", Href = "/sites",
+                        Icon = Icons.Material.Filled.Apartment },
+            ]
+        },
     ];
 }

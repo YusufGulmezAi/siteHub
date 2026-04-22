@@ -1,0 +1,176 @@
+@page "/organizations"
+@rendermode InteractiveServer
+
+@using SiteHub.Contracts.Common
+@using SiteHub.Contracts.Organizations
+@using SiteHub.ManagementPortal.Services.Api
+
+@inject IOrganizationsApi OrganizationsApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Organizasyonlar — SiteHub</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4" Style="font-weight:600">Organizasyonlar</MudText>
+        <MudText Typo="Typo.body2" Style="color:#6B7280">
+            Yönetim firmaları (Organization) — yönetilen siteler bunlara bağlıdır.
+        </MudText>
+    </div>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="NavigateToCreate">
+        Yeni Organizasyon
+    </MudButton>
+</MudStack>
+
+<MudPaper Elevation="1" Class="pa-4">
+
+    @* Toolbar: arama + filter toggle *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+        <MudTextField T="string"
+                      Value="_search"
+                      ValueChanged="OnSearchChanged"
+                      Placeholder="İsim, VKN, e-posta ile ara..."
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      DebounceInterval="300"
+                      Immediate="true"
+                      Clearable="true"
+                      Style="max-width:420px" />
+
+        <MudSpacer />
+
+        <MudSwitch T="bool" @bind-Value="_includeInactive"
+                   @bind-Value:after="RefreshAsync"
+                   Color="Color.Primary"
+                   Label="Pasifleri de göster" />
+    </MudStack>
+
+    @* Data grid *@
+    <MudDataGrid T="OrganizationListItemDto"
+                 ServerData="LoadServerData"
+                 @ref="_dataGrid"
+                 Dense="true"
+                 Hover="true"
+                 Striped="false"
+                 Bordered="false"
+                 Elevation="0"
+                 RowClick="@((DataGridRowClickEventArgs<OrganizationListItemDto> e) => NavigateToDetail(e.Item.Id))"
+                 RowClass="cursor-pointer">
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Kod" />
+            <PropertyColumn Property="x => x.Name" Title="Ad" />
+            <PropertyColumn Property="x => x.CommercialTitle" Title="Ticari Ünvan" />
+            <PropertyColumn Property="x => x.TaxId" Title="VKN" />
+            <PropertyColumn Property="x => x.Phone" Title="Telefon" />
+            <PropertyColumn Property="x => x.Email" Title="E-posta" />
+            <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
+                <CellTemplate>
+                    @if (context.Item.IsActive)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Aktif</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">Pasif</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                   Size="Size.Small"
+                                   OnClick="@(() => NavigateToDetail(context.Item.Id))"
+                                   aria-label="Detay" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   OnClick="@(() => NavigateToEdit(context.Item.Id))"
+                                   aria-label="Düzenle" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <NoRecordsContent>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="ma-4">
+                Gösterilecek organizasyon yok.
+                @if (!string.IsNullOrWhiteSpace(_search))
+                {
+                    <span> Arama kriterlerinizi gevşetin.</span>
+                }
+            </MudAlert>
+        </NoRecordsContent>
+        <LoadingContent>
+            <MudText Class="ma-4">Yükleniyor...</MudText>
+        </LoadingContent>
+        <PagerContent>
+            <MudDataGridPager T="OrganizationListItemDto"
+                              PageSizeOptions="new[] { 10, 20, 50, 100 }" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<OrganizationListItemDto>? _dataGrid;
+    private string? _search;
+    private bool _includeInactive;
+
+    private async Task<GridData<OrganizationListItemDto>> LoadServerData(
+        GridState<OrganizationListItemDto> state, CancellationToken ct)
+    {
+        try
+        {
+            var result = await OrganizationsApi.GetAllAsync(
+                page: state.Page + 1,   // MudDataGrid 0-indexed, API 1-indexed
+                pageSize: state.PageSize,
+                search: string.IsNullOrWhiteSpace(_search) ? null : _search,
+                includeInactive: _includeInactive,
+                ct: ct);
+
+            return new GridData<OrganizationListItemDto>
+            {
+                Items = result.Items,
+                TotalItems = result.TotalCount
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            // Grid başka load başlattığında veya navigation'da cancel normaldir
+            return new GridData<OrganizationListItemDto>
+            {
+                Items = Array.Empty<OrganizationListItemDto>(),
+                TotalItems = 0
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Organizasyonlar yüklenemedi: {ex.Message}", Severity.Error);
+            return new GridData<OrganizationListItemDto>
+            {
+                Items = Array.Empty<OrganizationListItemDto>(),
+                TotalItems = 0
+            };
+        }
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_dataGrid is not null)
+            await _dataGrid.ReloadServerData();
+    }
+
+    private void NavigateToCreate() => Nav.NavigateTo("/organizations/new");
+
+    private void NavigateToDetail(Guid id) => Nav.NavigateTo($"/organizations/{id}");
+
+    private void NavigateToEdit(Guid id) => Nav.NavigateTo($"/organizations/{id}/edit");
+}
