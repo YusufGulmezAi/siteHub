@@ -117,9 +117,11 @@ System Admin RLS'yi bypass edebilir ama:
 | E-Pre G2-A2 | `identity.roles` RLS policy + seed bootstrap mode | ✅ | `c43eb78` |
 | E-Pre G2-A3 | Integration tests (Testcontainers) — ⚠️ SİLİNDİ | ❌ | — |
 | E-Pre G2-A4 | `public.organizations` RLS policy | ✅ | `48c0b89` |
+| — | Hijyen + Faz F.1 plani (ADR-0014 §8) | ✅ | `e51bc83` |
+| F.1 | Site domain entity + factory + 45 unit test | ✅ | `6882fd8` |
 
-**Son commit:** `48c0b89` (2026-04-22 sabah)
-**Test durumu:** 101 test yeşil. Build temiz.
+**Son commit:** `6882fd8` (2026-04-22 sabah)
+**Test durumu:** 146 test yeşil (101 + 45 Site). Build temiz.
 
 ### E-Pre G2-A3 (Integration Tests) — Neden Silindi?
 
@@ -134,33 +136,53 @@ propagation). **Asıl kanıt mevcut:** docker exec manuel test + portal login
 
 - **A.2.b** `identity.memberships` RLS — login handler'ı `current_login_account_id`
   session variable'ı set edecek şekilde değişmeli. Dikkatli iş, ayrı seans.
-- **A.4.b** Site → Organization resolver — Site domain henüz yok (Faz F).
-  Resolver Faz F'te Site entity'si ile birlikte yapılacak. ADR-0014 §8'de
-  detaylı gerekçe var.
+- **A.4.b** Site → Organization resolver — Faz F.4'te yapılacak (Site entity
+  hazır, resolver artık yazılabilir). ADR-0014 §8'de detay.
 
-## 6. Sıradaki İş — **Faz F: Site Domain + CRUD + Backup**
+## 6. Sıradaki İş — **Faz F.2: Site EF Core Config + Migration**
 
-**Amaç:** Organization altına Site (apartman/kompleks) entity'sini eklemek.
-Multi-tenant hiyerarşisinin ikinci katmanı. Aynı zamanda **backup automation**
-bu faza girer — prod deploy öncesi mutlaka.
+**Amaç:** Site entity'sini DB'ye bağla. `tenancy.sites` tablosu yarat, FK'lar,
+unique index'ler, soft-delete filtresi. Migration uygulanınca Site entity
+kullanıma hazır olur (CRUD F.3'te yazılır).
 
-### Faz F Alt Parçaları (öneri — başlarken netleşecek)
+### F.2 Kapsamı
 
-- [ ] **F.1** Site domain entity + factory + invariant'lar (Domain, test'li)
-- [ ] **F.2** Site EF Core configuration + migration (Infrastructure)
-- [ ] **F.3** Site CRUD backend (CreateCommand, Query, endpoint'ler)
-- [ ] **F.4** HttpTenantContext Site → Org resolver (A.4.b buraya entegre)
-- [ ] **F.5** `tenancy.sites` tablosuna RLS policy (org-scoped)
+- [ ] `SiteConfiguration.cs` — EF Core mapping (Infrastructure)
+- [ ] `SiteHubDbContext.Sites` DbSet
+- [ ] Migration: `AddSitesTable`
+  - Tablo: `tenancy.sites` (yeni şema — "tenancy" mi "public" mi: **karar gerek**)
+  - FK: `organization_id → public.organizations(id)` (RESTRICT)
+  - FK: `province_id → geography.provinces(id)` (RESTRICT)
+  - FK: `district_id → geography.districts(id)` (RESTRICT, NULL allowed)
+  - Unique: `code` (global)
+  - Unique: `(organization_id, name)` opsiyonel (org içinde aynı isim olmasın)
+  - Index: `search_text` (ILIKE için deterministic collation)
+  - Soft-delete index: `WHERE deleted_at IS NULL`
+- [ ] Portal çalıştır → migration uygulanır → seed'ler etkilenmez (Site seed yok)
+- [ ] `docker exec` ile tablo oluştu mu doğrula
+- [ ] Commit + push
+
+**Süre tahmini:** 30-45 dakika (yeni karar çok az, Organization pattern hazır)
+
+### F.2 Öncesi Açık Karar
+
+**Şema adı:** `tenancy.sites` mi `public.sites` mi?
+- `tenancy.sites` — daha temiz, tenant-related tablolar gruplanır, ileride
+  `tenancy.organizations` da taşınabilir (şimdi public.organizations).
+- `public.sites` — Organization ile tutarlı, tek şema.
+- **Öneri:** `tenancy.sites` — yeni şema, gelecekte temiz migration path.
+
+### Faz F Geri Kalan Alt Parçaları
+
+- [x] **F.1** Site domain entity + factory + 45 test → `6882fd8`
+- [ ] **F.2** Site EF Core config + migration ← **BURADAYIZ**
+- [ ] **F.3** Site CRUD backend (CreateCommand + Query + endpoint'ler)
+- [ ] **F.4** HttpTenantContext Site → Org resolver (A.4.b entegre)
+- [ ] **F.5** `tenancy.sites` RLS policy (org-scoped)
 - [ ] **F.6** Site CRUD UI (MudDataGrid, form)
-- [ ] **F.7** Backup automation (pg_dump + WAL archive, Hangfire job)
+- [ ] **F.7** Backup automation (pg_dump + WAL, Hangfire)
 
-**Süre tahmini:** 3-5 seans (her bir alt parça ~1 seans)
-
-### Yarın için — Faz E UI Alternatifi
-
-Faz F yerine Faz E (Organization CRUD UI) da başlatılabilir. Backend hazır,
-sadece MudBlazor form + grid kalmış. Daha kısa, daha görsel:
-**tahmini 1-2 seans**. Karar kullanıcı tarafından verilir.
+**Faz F toplam kalan süre tahmini:** 2-3 seans (F.2+F.3 bir seansta olabilir, F.6 ayrı)
 
 ## 7. Sıradaki Fazlar (Faz F sonrası)
 
