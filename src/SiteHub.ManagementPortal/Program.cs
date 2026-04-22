@@ -47,9 +47,10 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     Log.Information("SiteHub Management Portal başlatılıyor...");
+	
 
     var builder = WebApplication.CreateBuilder(args);
-
+	
     // ─── 2. Serilog (gerçek logger) ──────────────────────────────────────────
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
@@ -57,30 +58,30 @@ try
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "SiteHub.ManagementPortal")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName));
-
+		
     // ─── 3. Blazor + Render Modes ────────────────────────────────────────────
     // Interactive Server aktif — SignalR circuit kullanır (anlık UI için)
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
-
+		
     // ─── 4. MudBlazor ────────────────────────────────────────────────────────
     builder.Services.AddMudServices();
-
+	
     // ─── Infrastructure (EF Core + PostgreSQL) ───────────────────────────────
     builder.Services.AddInfrastructure(builder.Configuration);
-
+	
     // ─── Application (MediatR + FluentValidation) ────────────────────────────
     builder.Services.AddApplication();
-
+	
     // ─── Cookie Authentication (ADR-0011 §7) ─────────────────────────────────
     builder.Services.AddSiteHubCookieAuthentication();
-
+	
     // ─── Demo Services (ileride backend'e bağlanacak) ────────────────────────
     builder.Services.AddSingleton<SiteHub.ManagementPortal.Services.Contexts.DemoContextService>();
-
+    
     // ─── HTTP / Health ────────────────────────────────────────────────────
     builder.Services.AddHealthChecks();
-
+	
     // TODO (sonraki adımlar):
     //   - builder.Services.AddSingleton(TimeProvider.System);
     //   - builder.Services.AddSingleton<ITurkeyClock, TurkeyClock>();
