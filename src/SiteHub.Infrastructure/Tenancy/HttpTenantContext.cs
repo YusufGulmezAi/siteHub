@@ -22,15 +22,23 @@ namespace SiteHub.Infrastructure.Tenancy;
 /// açısından güvenli: PostgreSQL session variable'ı NULL olunca hiçbir satır
 /// döndürülmez (ADR-0002-v2 §3).</para>
 ///
-/// <para><b>Faz E-Pre Gün 1 kapsamı (bu dosya):</b> Temel interface + Session entegrasyonu.
-/// URL path segment (<c>/c/{type}/{id}/...</c>) ile override, Admin impersonation,
-/// Resident context Gün 2+ ve Gün 3'te eklenir.</para>
+/// <para><b>Faz F.4:</b> Site context'te <see cref="OrganizationId"/> artık
+/// <see cref="ISiteOrgResolver"/> ile DB'den çözülüyor. Resolver'ın kendi IMemoryCache'i
+/// var (5 dk TTL). Ayrıca per-request cache HttpContext.Items'da tutulur
+/// (aynı request içinde tekrar DB lookup yapılmaz).</para>
 /// </summary>
 public sealed class HttpTenantContext : ITenantContext
 {
-    private readonly IHttpContextAccessor _http;
+    private const string PerRequestOrgIdCacheKey = "SiteHub:Tenant:ResolvedOrgId";
 
-    public HttpTenantContext(IHttpContextAccessor http) => _http = http;
+    private readonly IHttpContextAccessor _http;
+    private readonly ISiteOrgResolver _siteOrgResolver;
+
+    public HttpTenantContext(IHttpContextAccessor http, ISiteOrgResolver siteOrgResolver)
+    {
+        _http = http;
+        _siteOrgResolver = siteOrgResolver;
+    }
 
     private Session? Session =>
         _http.HttpContext?.Items[SessionValidationMiddleware.SessionContextKey] as Session;
@@ -65,25 +73,52 @@ public sealed class HttpTenantContext : ITenantContext
     {
         get
         {
-            // Organization / Site / Branch / ServiceOrg — hepsinde aktif organization var.
-            // System modunda organization yok. Resident'ta da yok.
             var type = ContextType;
             if (type == TenantContextType.None || type == TenantContextType.System
                 || type == TenantContextType.Resident)
                 return null;
 
-            // NOT: Session'daki Active.ContextId, ContextType=Organization ise OrganizationId,
-            // ContextType=Site ise SiteId. Organization'ı ayrıca Branch/Site durumunda da
-            // resolvelamak gerek — bu MVP'de Session'da ayrıca saklanmıyor.
-            //
-            // Gün 2'de: DB'den OrganizationId resolve eden mekanizma eklenir (cache + resolver).
-            // Şimdilik sadece ContextType=Organization durumunu destekliyoruz; Site context'inde
-            // OrganizationId bilinmediği için null döner (bu eksiklik bilinçli, Gün 2'de çözülecek).
+            // Organization context: ContextId doğrudan org id'dir
             if (Active?.ContextType == MembershipContextType.Organization)
                 return Active.ContextId;
 
+            // Site context: ContextId site id'dir, parent org'u resolver ile çöz.
+            // ServiceOrganization/Branch: Faz F sonrası ele alınır (entity'ler yok).
+            if (Active?.ContextType == MembershipContextType.Site && Active.ContextId.HasValue)
+                return ResolveOrgForSiteContext(Active.ContextId.Value);
+
             return null;
         }
+    }
+
+    /// <summary>
+    /// Site context'te parent OrganizationId'yi çözer. İki katmanlı cache:
+    /// 1. Per-request: HttpContext.Items (aynı request tekrar DB'ye gitmez)
+    /// 2. Global: IMemoryCache (process-wide, 5 dk TTL, SiteOrgResolver içinde)
+    /// </summary>
+    private Guid? ResolveOrgForSiteContext(Guid siteId)
+    {
+        var ctx = _http.HttpContext;
+        if (ctx is not null && ctx.Items.TryGetValue(PerRequestOrgIdCacheKey, out var cached)
+            && cached is Guid cachedGuid)
+        {
+            return cachedGuid;
+        }
+
+        // Sync-over-async: property getter içinde zorunlu.
+        // Cache hit durumunda sync, miss durumunda DB sorgusu (async çalışır, await yok).
+        // ASP.NET Core'da property'lerden sync-wait tipik ve kabul edilebilir
+        // (Blazor Server SignalR'da risk minimal — circuit thread pool kullanır).
+        var resolved = _siteOrgResolver
+            .GetOrganizationIdAsync(siteId, CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        if (ctx is not null && resolved.HasValue)
+        {
+            ctx.Items[PerRequestOrgIdCacheKey] = resolved.Value;
+        }
+
+        return resolved;
     }
 
     public Guid? SiteId
@@ -113,8 +148,6 @@ public sealed class HttpTenantContext : ITenantContext
             var session = Session;
             if (session is null || session.Pending2FA) return false;
 
-            // Session açılışında AvailableContexts snapshot'ında System seviyesi membership
-            // varsa kullanıcı System kullanıcısıdır. Context seçiminden bağımsız bilgi.
             return session.AvailableContexts
                 .Any(m => m.ContextType == (int)MembershipContextType.System);
         }

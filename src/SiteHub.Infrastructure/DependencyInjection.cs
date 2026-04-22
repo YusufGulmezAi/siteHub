@@ -109,6 +109,11 @@ public static class DependencyInjection
         // ADR-0014 §1: Tenant context — scoped/circuit-scoped (multi-tab izolasyon)
         services.AddScoped<ITenantContext, HttpTenantContext>();
 
+        // Faz F.4 (ADR-0014 A.4.b): Site → Organization resolver
+        // IMemoryCache global olmalı — HttpTenantContext 5 dk TTL ile cache'ler
+        services.AddMemoryCache();
+        services.AddScoped<ISiteOrgResolver, SiteOrgResolver>();
+
         return services;
     }
 

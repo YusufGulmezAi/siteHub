@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SiteHub.Application.Abstractions.Persistence;
+using SiteHub.Application.Abstractions.Tenancy;
 using SiteHub.Domain.Tenancy.Sites;
 
 namespace SiteHub.Application.Features.Sites;
@@ -82,15 +83,18 @@ public sealed class DeleteSiteHandler
     : IRequestHandler<DeleteSiteCommand, SiteStatusResult>
 {
     private readonly ISiteHubDbContext _db;
+    private readonly ISiteOrgResolver _siteOrgResolver;
     private readonly TimeProvider _time;
     private readonly ILogger<DeleteSiteHandler> _logger;
 
     public DeleteSiteHandler(
         ISiteHubDbContext db,
+        ISiteOrgResolver siteOrgResolver,
         TimeProvider time,
         ILogger<DeleteSiteHandler> logger)
     {
         _db = db;
+        _siteOrgResolver = siteOrgResolver;
         _time = time;
         _logger = logger;
     }
@@ -125,6 +129,10 @@ public sealed class DeleteSiteHandler
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // Faz F.4: Cache invalidate — silinen Site'ın resolve çağrıları artık null dönsün
+        _siteOrgResolver.InvalidateCacheFor(site.Id.Value);
+
         _logger.LogInformation(
             "Site soft-delete: id={SiteId}, reason={Reason}.", site.Id, cmd.Reason);
         return SiteStatusResult.Success();
