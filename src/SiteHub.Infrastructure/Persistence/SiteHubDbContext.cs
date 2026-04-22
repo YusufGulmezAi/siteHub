@@ -5,6 +5,7 @@ using SiteHub.Domain.Geography;
 using SiteHub.Domain.Identity;
 using SiteHub.Domain.Identity.Authorization;
 using SiteHub.Domain.Tenancy.Organizations;
+using SiteHub.Domain.Tenancy.Sites;
 
 namespace SiteHub.Infrastructure.Persistence;
 
@@ -24,6 +25,7 @@ public class SiteHubDbContext(DbContextOptions<SiteHubDbContext> options) : DbCo
 
     // ─── Tenancy (ortak schema) ──────────────────────────────────────────
     public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Site> Sites => Set<Site>();
 
     // ─── Geography (geography schema) — Referans veri ─────────────────────
     public DbSet<Country> Countries => Set<Country>();

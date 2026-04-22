@@ -4,6 +4,7 @@ using SiteHub.Domain.Geography;
 using SiteHub.Domain.Identity;
 using SiteHub.Domain.Identity.Authorization;
 using SiteHub.Domain.Tenancy.Organizations;
+using SiteHub.Domain.Tenancy.Sites;
 
 namespace SiteHub.Application.Abstractions.Persistence;
 
@@ -23,6 +24,7 @@ public interface ISiteHubDbContext
 {
     // Tenancy
     DbSet<Organization> Organizations { get; }
+    DbSet<Site> Sites { get; }
 
     // Geography
     DbSet<Country> Countries { get; }
