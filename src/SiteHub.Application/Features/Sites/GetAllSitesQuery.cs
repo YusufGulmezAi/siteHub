@@ -9,49 +9,60 @@ using SiteHub.Domain.Text;
 namespace SiteHub.Application.Features.Sites;
 
 /// <summary>
-/// Bir Organization'a ait Site listesi — sayfalı + aranabilir.
+/// Tüm Site'ları sayfalı + aranabilir getirir (flat endpoint).
 ///
-/// <para>Nested REST: <c>GET /api/organizations/{orgId}/sites</c>
-/// URL'den gelen <paramref name="OrganizationId"/> zorunlu.</para>
+/// <para>Flat REST: <c>GET /api/sites</c> — Organization filtre yok, RLS
+/// otomatik filtreler:</para>
+/// <list type="bullet">
+///   <item>System Admin: tüm Organization'ların Site'ları</item>
+///   <item>Organization user: sadece kendi Organization'ının Site'ları (RLS)</item>
+/// </list>
 ///
-/// <para><b>Arama:</b> SearchText doluysa Site.SearchText kolonunda LIKE (Code + Name +
-/// CommercialTitle + Address + TaxId + Iban birleşik aranır). Organization adı aramaya
-/// dahil değil — UI'da kullanıcı kendi Organization context'indedir.</para>
+/// <para><b>Arama:</b> Site.SearchText kolonunda LIKE (Site kendi alanları).
+/// Organization adı ile arama dahil değil — o kolon görsel kolayık sağlar,
+/// kullanıcı gözle süzer.</para>
 ///
-/// <para><b>F.6 C.1:</b> Response'a <c>OrganizationName</c> alanı eklendi. Explicit
-/// Join ile Organization tablosundan çekilir (Site entity'sinde navigation property yok).</para>
+/// <para><b>Opsiyonel <paramref name="OrganizationId"/>:</b> Verilmişse o org'a
+/// filtrelenir. UI'da kullanılmaz (nested endpoint zaten var) ama backend'de hazır.</para>
+///
+/// <para><b>F.6 C.1 yeni.</b></para>
 /// </summary>
-public sealed record GetSitesQuery(
-    Guid OrganizationId,
+public sealed record GetAllSitesQuery(
     int Page = 1,
     int PageSize = 20,
     string? SearchText = null,
     bool IncludeInactive = false,
-    bool IncludeDeleted = false)
+    bool IncludeDeleted = false,
+    Guid? OrganizationId = null)
     : IRequest<PagedResult<SiteListItemDto>>;
 
-public sealed class GetSitesHandler
-    : IRequestHandler<GetSitesQuery, PagedResult<SiteListItemDto>>
+public sealed class GetAllSitesHandler
+    : IRequestHandler<GetAllSitesQuery, PagedResult<SiteListItemDto>>
 {
     private const int MaxPageSize = 100;
 
     private readonly ISiteHubDbContext _db;
 
-    public GetSitesHandler(ISiteHubDbContext db)
+    public GetAllSitesHandler(ISiteHubDbContext db)
     {
         _db = db;
     }
 
     public async Task<PagedResult<SiteListItemDto>> Handle(
-        GetSitesQuery q, CancellationToken ct)
+        GetAllSitesQuery q, CancellationToken ct)
     {
         var page = Math.Max(1, q.Page);
         var pageSize = Math.Clamp(q.PageSize, 1, MaxPageSize);
-        var orgId = OrganizationId.FromGuid(q.OrganizationId);
 
-        var query = _db.Sites
-            .AsNoTracking()
-            .Where(s => s.OrganizationId == orgId);
+        var query = _db.Sites.AsNoTracking().AsQueryable();
+
+        // Opsiyonel organization filter (UI kullanmaz, RLS zaten yapar — ama
+        // System Admin için manuel filtre gerekebilir, hazır dursun).
+        if (q.OrganizationId.HasValue)
+        {
+            var orgId = OrganizationId.FromGuid(q.OrganizationId.Value);
+            query = query.Where(s => s.OrganizationId == orgId);
+        }
 
         if (!q.IncludeDeleted)
             query = query.Where(s => s.DeletedAt == null);
@@ -68,10 +79,6 @@ public sealed class GetSitesHandler
 
         var totalCount = await query.CountAsync(ct);
 
-        // Explicit join — Site entity'sinde Organization navigation property yok,
-        // SiteConfiguration'da HasOne<Organization>() property'siz tanımlı.
-        // Join ile OrganizationName çekiyoruz. Organization soft-delete olmuş olsa
-        // bile kayıt DB'de durur, join boş dönmez (query filter yoksa).
         var items = await query
             .Join(_db.Organizations.AsNoTracking(),
                   s => s.OrganizationId,

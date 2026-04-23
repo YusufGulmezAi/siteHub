@@ -12,8 +12,9 @@ namespace SiteHub.ManagementPortal.Endpoints.Sites;
 /// <summary>
 /// Site (apartman/kompleks) CRUD endpoint'leri.
 ///
-/// <para><b>URL pattern — Nested REST:</b></para>
+/// <para><b>URL pattern — Nested + Flat REST:</b></para>
 /// <list type="bullet">
+///   <item><c>GET /api/sites</c> — TÜM Site'lar (flat, RLS filtreler) <b>← F.6 C.1 yeni</b></item>
 ///   <item><c>GET /api/organizations/{orgId}/sites</c> — Organization'ın Site listesi</item>
 ///   <item><c>POST /api/organizations/{orgId}/sites</c> — Yeni Site</item>
 ///   <item><c>GET /api/sites/{id}</c> — Site detay (direct ID lookup)</item>
@@ -27,6 +28,9 @@ namespace SiteHub.ManagementPortal.Endpoints.Sites;
 ///
 /// <para><b>F.6 Cleanup:</b> Response DTO'ları (SiteListItemDto / SiteDetailDto / PagedResult)
 /// artık Contracts'tan geliyor. Organizations hack-import'u kaldırıldı.</para>
+///
+/// <para><b>F.6 C.1:</b> Flat <c>GET /api/sites</c> endpoint'i eklendi. Response'ta
+/// <c>OrganizationName</c> alanı mevcut (nested endpoint'te de tutarlı).</para>
 /// </summary>
 public sealed class SiteEndpoints : IEndpointModule
 {
@@ -38,20 +42,47 @@ public sealed class SiteEndpoints : IEndpointModule
             .RequireAuthorization()
             .DisableAntiforgery();
 
-        orgScoped.MapGet("/", GetListAsync).WithName("GetSitesByOrganization");
+        orgScoped.MapGet("/", GetListByOrganizationAsync).WithName("GetSitesByOrganization");
         orgScoped.MapPost("/", CreateAsync).WithName("CreateSite");
 
-        // Direct-ID group (tek Site üzerinde işlemler — URL daha kısa)
+        // Direct-ID group (tek Site üzerinde işlemler + flat listeleme)
         var byId = app.MapGroup("/api/sites")
             .WithTags("Sites")
             .RequireAuthorization()
             .DisableAntiforgery();
+
+        // F.6 C.1: Flat listeleme — tüm Organization'ların Site'ları (RLS filtreler)
+        byId.MapGet("/", GetAllAsync).WithName("GetAllSites");
 
         byId.MapGet("/{id:guid}", GetByIdAsync).WithName("GetSiteById");
         byId.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateSite");
         byId.MapPost("/{id:guid}/activate", ActivateAsync).WithName("ActivateSite");
         byId.MapPost("/{id:guid}/deactivate", DeactivateAsync).WithName("DeactivateSite");
         byId.MapDelete("/{id:guid}", DeleteAsync).WithName("DeleteSite");
+    }
+
+    // ─── GET /api/sites (flat list — F.6 C.1) ───────────────────────────────
+
+    public sealed record FlatListQueryParams(
+        int Page = 1,
+        int PageSize = 20,
+        string? Search = null,
+        bool IncludeInactive = false,
+        Guid? OrganizationId = null);
+
+    private static async Task<Ok<PagedResult<SiteListItemDto>>> GetAllAsync(
+        [AsParameters] FlatListQueryParams p,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        var result = await mediator.Send(
+            new GetAllSitesQuery(
+                Page: p.Page,
+                PageSize: p.PageSize,
+                SearchText: p.Search,
+                IncludeInactive: p.IncludeInactive,
+                OrganizationId: p.OrganizationId), ct);
+        return TypedResults.Ok(result);
     }
 
     // ─── GET /api/organizations/{orgId}/sites ───────────────────────────────
@@ -62,7 +93,7 @@ public sealed class SiteEndpoints : IEndpointModule
         string? Search = null,
         bool IncludeInactive = false);
 
-    private static async Task<Ok<PagedResult<SiteListItemDto>>> GetListAsync(
+    private static async Task<Ok<PagedResult<SiteListItemDto>>> GetListByOrganizationAsync(
         Guid orgId,
         [AsParameters] ListQueryParams p,
         IMediator mediator,

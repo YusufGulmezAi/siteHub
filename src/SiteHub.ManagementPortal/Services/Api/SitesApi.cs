@@ -14,6 +14,35 @@ internal sealed class SitesApi : ISitesApi
         _http = http;
     }
 
+    /// <summary>
+    /// F.6 C.1: Flat endpoint — tüm Organization'ların Site'ları.
+    /// OrganizationsApi.GetAllAsync ile birebir aynı pattern.
+    /// </summary>
+    public async Task<PagedResult<SiteListItemDto>> GetAllAsync(
+        int page = 1,
+        int pageSize = 20,
+        string? search = null,
+        bool includeInactive = false,
+        Guid? organizationId = null,
+        CancellationToken ct = default)
+    {
+        var qs = new List<string>
+        {
+            $"page={page}",
+            $"pageSize={pageSize}",
+            $"includeInactive={includeInactive.ToString().ToLowerInvariant()}"
+        };
+        if (!string.IsNullOrWhiteSpace(search))
+            qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (organizationId.HasValue)
+            qs.Add($"organizationId={organizationId.Value}");
+
+        var url = $"/api/sites?{string.Join("&", qs)}";
+
+        var result = await _http.GetFromJsonAsync<PagedResult<SiteListItemDto>>(url, ct);
+        return result ?? PagedResult<SiteListItemDto>.Empty(page, pageSize);
+    }
+
     public async Task<PagedResult<SiteListItemDto>> GetByOrganizationAsync(
         Guid organizationId,
         int page = 1,
