@@ -1,0 +1,384 @@
+@*
+    Sites/Detail.razor — Site detay sayfası (F.6 C.5a + 1. revizyon).
+
+    Route: /organizations/{OrganizationId}/sites/{SiteId}
+
+    Tablar (F.6 C.5a):
+      1. Ana Bilgiler — FULL (Site + Adres/Finans kartları + Sistem Bilgileri toggle)
+      2. Banka & Hesaplar — placeholder (C.5b+)
+      3. Muhasebe — placeholder
+      4. Finans — placeholder
+      5. İK — placeholder
+      6. Belgeler — placeholder
+      7. Yapı Şeması — placeholder (yeni, C.5a rev 1)
+      8. Abonelikler — placeholder (yeni, C.5a rev 1)
+
+    1. revizyon değişiklikleri:
+      - MaxWidth=False → içerik tüm body'yi kaplar (madde 1)
+      - 2 yeni placeholder tab: Yapı Şeması, Abonelikler (madde 2)
+      - H5 site başlığı kaldırıldı, breadcrumb son segment site adı gösteriyor (madde 5)
+      - Sistem Bilgileri → info ikonlu toggle, default kapalı (madde 6)
+      - "Listeye Dön" butonu kaldırıldı (madde 7)
+*@
+@page "/organizations/{OrganizationId:guid}/sites/{SiteId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using SiteHub.Contracts.Organizations
+@using SiteHub.Contracts.Sites
+@using SiteHub.ManagementPortal.Services.Api
+
+@inject ISitesApi SitesApi
+@inject IOrganizationsApi OrganizationsApi
+@inject IGeographyApi GeographyApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_site?.Name ?? "Site Detayı") — SiteHub</PageTitle>
+
+@* MaxWidth.False → body tam genişlik (madde 1). Yan padding için px-4. *@
+<MudContainer MaxWidth="MaxWidth.False" Class="mt-4 px-4">
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    }
+    else if (_loadError)
+    {
+        <MudAlert Severity="Severity.Error" Class="my-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4">
+                <MudText>@_errorMessage</MudText>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           OnClick="GoToList">
+                    Site Listesine Dön
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+    else if (_site is not null)
+    {
+        @* Breadcrumb: Organizasyonlar › [Org] › Siteler › [Site Adı] *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
+            <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
+                <MudText Typo="Typo.body2">Organizasyonlar</MudText>
+            </MudLink>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                     Size="Size.Small"
+                     Style="color: var(--mud-palette-text-secondary);" />
+            <MudLink Href="@($"/organizations/{OrganizationId}")"
+                     Color="Color.Primary" Underline="Underline.Hover">
+                <MudText Typo="Typo.body2">@(_site.OrganizationName ?? "...")</MudText>
+            </MudLink>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                     Size="Size.Small"
+                     Style="color: var(--mud-palette-text-secondary);" />
+            <MudLink Href="@($"/organizations/{OrganizationId}/sites")"
+                     Color="Color.Primary" Underline="Underline.Hover">
+                <MudText Typo="Typo.body2">Siteler</MudText>
+            </MudLink>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                     Size="Size.Small"
+                     Style="color: var(--mud-palette-text-secondary);" />
+            <MudText Typo="Typo.body2"
+                     Style="color: var(--mud-palette-text-secondary);">
+                @_site.Name
+            </MudText>
+        </MudStack>
+
+        @* Durum badge'i — tek başına, sol (madde 5 + 7: H5 başlık + Listeye Dön kaldırıldı) *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            @if (_site.IsActive)
+            {
+                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                            border-radius: 999px; background-color: var(--mud-palette-success-darken);
+                            color: #ffffff; font-size: 0.875rem;
+                            font-weight: 500; line-height: 1;">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                             Size="Size.Small"
+                             Style="color: inherit;" />
+                    <span>Aktif</span>
+                </div>
+            }
+            else
+            {
+                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                            border-radius: 999px; background-color: var(--mud-palette-warning);
+                            color: var(--mud-palette-warning-contrastText); font-size: 0.875rem;
+                            font-weight: 500; line-height: 1;">
+                    <MudIcon Icon="@Icons.Material.Filled.Block"
+                             Size="Size.Small"
+                             Style="color: inherit;" />
+                    <span>Pasif</span>
+                </div>
+            }
+        </MudStack>
+
+        @* Tab yapısı — 8 tab (madde 2: Yapı Şeması + Abonelikler eklendi) *@
+        <MudPaper Elevation="1" Class="pa-0">
+            <MudTabs Elevation="0"
+                     Rounded="true"
+                     ApplyEffectsToContainer="true"
+                     Color="Color.Primary">
+
+                <MudTabPanel Text="Ana Bilgiler" Icon="@Icons.Material.Filled.Info" Class="pa-4">
+                    @MainInfoTab
+                </MudTabPanel>
+
+                <MudTabPanel Text="Banka & Hesaplar" Icon="@Icons.Material.Filled.AccountBalance" Class="pa-4">
+                    @PlaceholderTab("Banka & Hesaplar", "Site'ın banka hesapları ve ilişkili banka bilgileri burada yönetilecek.")
+                </MudTabPanel>
+
+                <MudTabPanel Text="Muhasebe" Icon="@Icons.Material.Filled.Calculate" Class="pa-4">
+                    @PlaceholderTab("Muhasebe", "Muhasebe dönemleri, hesap planı ve raporlar burada yer alacak.")
+                </MudTabPanel>
+
+                <MudTabPanel Text="Finans" Icon="@Icons.Material.Filled.TrendingUp" Class="pa-4">
+                    @PlaceholderTab("Finans", "Tahsilat, ödeme, bakiye ve nakit akışı bilgileri burada yönetilecek.")
+                </MudTabPanel>
+
+                <MudTabPanel Text="İK" Icon="@Icons.Material.Filled.People" Class="pa-4">
+                    @PlaceholderTab("İnsan Kaynakları", "Personel, bordro ve özlük işlemleri burada yer alacak. İlk olarak Bordro bölümü eklenecek.")
+                </MudTabPanel>
+
+                <MudTabPanel Text="Belgeler" Icon="@Icons.Material.Filled.Folder" Class="pa-4">
+                    @PlaceholderTab("Belgeler", "Yönetim Karar Defteri, Denetim Karar Defteri, Yönetim Planları, Vaziyet Planları, Mali Raporlar ve Diğer belgeler kategorilerinde dosya yönetimi burada yapılacak.")
+                </MudTabPanel>
+
+                @* Yeni tablar — madde 2 *@
+                <MudTabPanel Text="Yapı Şeması" Icon="@Icons.Material.Filled.AccountTree" Class="pa-4">
+                    @PlaceholderTab("Yapı Şeması", "Site'ın blok, kat, daire/bağımsız bölüm yapısı burada yönetilecek.")
+                </MudTabPanel>
+
+                <MudTabPanel Text="Abonelikler" Icon="@Icons.Material.Filled.Subscriptions" Class="pa-4">
+                    @PlaceholderTab("Abonelikler", "Elektrik, su, doğalgaz, internet vb. abonelik bilgileri burada yönetilecek.")
+                </MudTabPanel>
+
+            </MudTabs>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@* ────────────────────────────────────────────────────────────────────────── *@
+@* TAB FRAGMENTS — RenderFragment olarak inline tanımlı                       *@
+@* ────────────────────────────────────────────────────────────────────────── *@
+
+@code {
+    // ─── Ana Bilgiler tab içeriği — 2 kart full + Sistem Bilgileri toggle'lı ──
+    private RenderFragment MainInfoTab => @<text>
+        <MudGrid>
+            @* Site kimlik bilgileri *@
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 h-100" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-3">Site Bilgileri</MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <th style="width: 40%;">Site Adı</th>
+                                <td>@_site!.Name</td>
+                            </tr>
+                            <tr>
+                                <th>Ticari Ünvan</th>
+                                <td>@OrEmDash(_site!.CommercialTitle)</td>
+                            </tr>
+                            <tr>
+                                <th>Site Kodu</th>
+                                <td><code>@_site!.Code</code></td>
+                            </tr>
+                            <tr>
+                                <th>VKN</th>
+                                <td>@OrEmDash(_site!.TaxId)</td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+
+            @* Adres + IBAN *@
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 h-100" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-3">Adres ve Finans</MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <th style="width: 40%;">Adres</th>
+                                <td>@OrEmDash(_site!.Address)</td>
+                            </tr>
+                            <tr>
+                                <th>İl</th>
+                                <td>@OrEmDash(_provinceName)</td>
+                            </tr>
+                            <tr>
+                                <th>İlçe</th>
+                                <td>@OrEmDash(_districtName)</td>
+                            </tr>
+                            <tr>
+                                <th>IBAN</th>
+                                <td>@OrEmDash(_site!.Iban)</td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+
+            @* Sistem bilgileri — toggle ile aç/kapa (madde 6). Default kapalı. *@
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-0">
+                        <MudText Typo="Typo.h6">Sistem Bilgileri</MudText>
+                        <MudIconButton Icon="@(_systemInfoOpen ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.Info)"
+                                       Size="Size.Small"
+                                       Color="Color.Default"
+                                       OnClick="@ToggleSystemInfo"
+                                       Style="background-color: var(--mud-palette-dark); color: #ffffff; border-radius: 999px;"
+                                       title="@(_systemInfoOpen ? "Gizle" : "Göster")" />
+                    </MudStack>
+                    <MudCollapse Expanded="_systemInfoOpen">
+                        <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false" Class="mt-3">
+                            <tbody>
+                                <tr>
+                                    <th style="width: 25%;">Oluşturulma Tarihi</th>
+                                    <td>@FormatLocal(_site!.CreatedAt)</td>
+                                </tr>
+                                <tr>
+                                    <th>Oluşturan</th>
+                                    <td>@OrEmDash(_site!.CreatedByName)</td>
+                                </tr>
+                                @if (_site!.UpdatedAt is not null)
+                                {
+                                    <tr>
+                                        <th>Son Güncelleme</th>
+                                        <td>@FormatLocal(_site!.UpdatedAt.Value)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Güncelleyen</th>
+                                        <td>@OrEmDash(_site!.UpdatedByName)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudCollapse>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </text>;
+
+    // ─── Placeholder tab pattern ─────────────────────────────────────────
+    private RenderFragment PlaceholderTab(string title, string description) => @<text>
+        <MudStack AlignItems="AlignItems.Center" Class="py-8" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Construction"
+                     Size="Size.Large"
+                     Style="color: var(--mud-palette-text-disabled);" />
+            <MudText Typo="Typo.h6"
+                     Style="color: var(--mud-palette-text-secondary);">
+                @title
+            </MudText>
+            <MudText Typo="Typo.body2"
+                     Align="Align.Center"
+                     Style="color: var(--mud-palette-text-secondary); max-width: 600px;">
+                @description
+            </MudText>
+            <MudText Typo="Typo.caption"
+                     Style="color: var(--mud-palette-text-disabled);">
+                Bu bölüm sonraki fazlarda gelecek.
+            </MudText>
+        </MudStack>
+    </text>;
+}
+
+@code {
+    [Parameter] public Guid OrganizationId { get; set; }
+    [Parameter] public Guid SiteId { get; set; }
+
+    private SiteDetailDto? _site;
+    private string? _provinceName;
+    private string? _districtName;
+
+    private bool _loading = true;
+    private bool _loadError = false;
+    private string _errorMessage = string.Empty;
+
+    // Sistem Bilgileri toggle state (madde 6)
+    private bool _systemInfoOpen = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = false;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            _site = await SitesApi.GetByIdAsync(SiteId);
+
+            if (_site is null)
+            {
+                _loadError = true;
+                _errorMessage = "Aranan site bulunamadı (silinmiş veya erişim yetkiniz yok olabilir).";
+                return;
+            }
+
+            if (_site.OrganizationId != OrganizationId)
+            {
+                _loadError = true;
+                _errorMessage = "Bu site seçili organizasyona ait değil.";
+                _site = null;
+                return;
+            }
+
+            await LoadGeographyNamesAsync();
+        }
+        catch (Exception ex)
+        {
+            _loadError = true;
+            _errorMessage = $"Site bilgisi yüklenemedi: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadGeographyNamesAsync()
+    {
+        if (_site is null) return;
+
+        try
+        {
+            var provinces = await GeographyApi.GetProvincesAsync();
+            var province = provinces.FirstOrDefault(p => p.Id == _site.ProvinceId);
+            _provinceName = province?.Name;
+
+            if (_site.DistrictId.HasValue && province is not null)
+            {
+                var districts = await GeographyApi.GetDistrictsByProvinceAsync(province.Id);
+                var district = districts.FirstOrDefault(d => d.Id == _site.DistrictId.Value);
+                _districtName = district?.Name;
+            }
+        }
+        catch
+        {
+            // Sessiz fail
+        }
+    }
+
+    private void ToggleSystemInfo() => _systemInfoOpen = !_systemInfoOpen;
+
+    private void GoToList() =>
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites");
+
+    private static string FormatLocal(DateTimeOffset utc)
+        => utc.LocalDateTime.ToString("dd.MM.yyyy HH:mm");
+
+    private static string OrEmDash(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

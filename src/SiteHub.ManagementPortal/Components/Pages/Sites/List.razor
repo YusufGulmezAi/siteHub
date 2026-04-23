@@ -1,18 +1,11 @@
 @*
-    Sites/List.razor — Organization context altında Site listesi (nested REST).
+    Sites/List.razor — Organization context altında Site listesi.
 
     Route: /organizations/{OrganizationId}/sites
 
-    Mimari (F.6 C.4):
-      - Site işlemleri daima Organization context'i altında
-      - URL'den OrganizationId alınır → bu org'un site'ları listelenir
-      - "Flat /sites" YOK — C.1 cleanup'ta geri alındı
-      - Nav menüde "Siteler" girişi YOK — yalnızca Organizasyonlar > [Org] > Siteler akışı
-
-    F.6 C.3 revizyonu:
-      - Alt metin kaldırıldı (sade başlık)
-      - "+ Yeni Site" butonu eklendi → /organizations/{orgId}/sites/new
-      - Satırlarda Detay/Düzenle ikonları henüz yok — C.5/C.3 Edit bitince eklenir
+    F.6 C.5a rev 1:
+      - H4 "Siteler" başlığı kaldırıldı, "+ Yeni Site" butonu sağ üstte tek başına (madde 8)
+      - Aktif badge: koyu yeşil + beyaz yazı (madde 8)
 *@
 @page "/organizations/{OrganizationId:guid}/sites"
 @rendermode InteractiveServer
@@ -20,8 +13,11 @@
 @using SiteHub.Contracts.Common
 @using SiteHub.Contracts.Organizations
 @using SiteHub.Contracts.Sites
+@using SiteHub.Domain.Identity.Authorization
+@using SiteHub.Shared.Authorization
 @using SiteHub.ManagementPortal.Services.Api
 @using SiteHub.ManagementPortal.Components.Shared
+@using SiteHub.ManagementPortal.Components.Shared.Authorization
 
 @inject ISitesApi SitesApi
 @inject IOrganizationsApi OrganizationsApi
@@ -30,7 +26,7 @@
 
 <PageTitle>@(_organizationName ?? "Siteler") — SiteHub</PageTitle>
 
-@* Breadcrumb: Organizasyonlar > [Org Adı] > Siteler (ikisi de tıklanabilir) *@
+@* Breadcrumb: Organizasyonlar > [Org Adı] > Siteler *@
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
     <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
         <MudText Typo="Typo.body2">Organizasyonlar</MudText>
@@ -63,24 +59,25 @@
 }
 else
 {
-    @* Başlık + Yeni Site butonu *@
+    @* Sağ üstte Yeni Site butonu — H4 başlık kaldırıldı (madde 8) *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-        <div>
-            <MudText Typo="Typo.h4" Style="font-weight:600">Siteler</MudText>
-        </div>
         <MudSpacer />
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="NavigateToCreate"
-                   Disabled="_organizationName is null">
-            Yeni Site
-        </MudButton>
+        <HasPermission Required="@Permissions.Site.Create"
+                       ContextType="MembershipContextType.Organization"
+                       ContextId="@OrganizationId">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="NavigateToCreate"
+                       Disabled="_organizationName is null">
+                Yeni Site
+            </MudButton>
+        </HasPermission>
     </MudStack>
 
     <MudPaper Elevation="1" Class="pa-4">
 
-        @* Toolbar: arama + durum filter — Organization List pattern'i *@
+        @* Toolbar: arama + durum filter *@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
             <MudTextField T="string"
                           Value="_search"
@@ -103,13 +100,6 @@ else
                        Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
         </MudStack>
 
-        @* Reusable tablo wrapper — Organization List ile aynı bileşen *@
-        @*
-            Kolonlar (OrganizationName YOK — zaten başlıkta ve breadcrumb'da):
-              Kod | Ad | Ticari Ünvan | Adres | VKN | IBAN | Durum
-
-            "İşlemler" kolonu yok — C.3 Edit ve C.5 Detail bitince eklenir.
-        *@
         <SiteHubDataGrid T="SiteListItemDto"
                          ServerData="LoadServerData"
                          @ref="_grid">
@@ -122,13 +112,12 @@ else
                 <PropertyColumn Property="x => x.Iban" Title="IBAN" />
                 <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
                     <CellTemplate>
-                        @* Durum badge'i — Organization List ile aynı workaround
-                           (MudChip MudBlazor 9.0.0 sessiz render fail, §5.5 Öğrenim 9) *@
+                        @* Aktif: koyu yeşil arka plan + beyaz yazı (madde 8) *@
                         @if (context.Item.IsActive)
                         {
                             <div style="display: inline-flex; align-items: center; padding: 2px 10px;
-                                        border-radius: 999px; background-color: var(--mud-palette-success);
-                                        color: var(--mud-palette-success-contrastText); font-size: 0.75rem;
+                                        border-radius: 999px; background-color: var(--mud-palette-success-darken);
+                                        color: #ffffff; font-size: 0.75rem;
                                         font-weight: 500; line-height: 1.2;">
                                 Aktif
                             </div>
@@ -143,6 +132,33 @@ else
                                 Pasif
                             </div>
                         }
+                    </CellTemplate>
+                </TemplateColumn>
+
+                @* F.6 C.5a: İşlemler kolonu — Detay + Düzenle ikonları, HasPermission wrapped *@
+                <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
+                    <CellTemplate>
+                        <MudStack Row="true" Spacing="0">
+                            <HasPermission Required="@Permissions.Site.Read"
+                                           ContextType="MembershipContextType.Site"
+                                           ContextId="@context.Item.Id">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                               Size="Size.Small"
+                                               Color="Color.Default"
+                                               OnClick="@(() => NavigateToDetail(context.Item.Id))"
+                                               title="Detay" />
+                            </HasPermission>
+
+                            <HasPermission Required="@Permissions.Site.Update"
+                                           ContextType="MembershipContextType.Site"
+                                           ContextId="@context.Item.Id">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => NavigateToEdit(context.Item.Id))"
+                                               title="Düzenle" />
+                            </HasPermission>
+                        </MudStack>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
@@ -171,7 +187,6 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // PROJECT_STATE §5.5 Teknik Öğrenim 1: prerender + HttpClient auth tuzağı.
         if (firstRender)
         {
             await LoadOrganizationNameAsync();
@@ -259,4 +274,10 @@ else
 
     private void NavigateToCreate() =>
         Nav.NavigateTo($"/organizations/{OrganizationId}/sites/new");
+
+    private void NavigateToDetail(Guid siteId) =>
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{siteId}");
+
+    private void NavigateToEdit(Guid siteId) =>
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{siteId}/edit");
 }
