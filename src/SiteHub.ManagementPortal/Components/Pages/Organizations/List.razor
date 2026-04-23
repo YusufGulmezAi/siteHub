@@ -95,7 +95,7 @@
             </TemplateColumn>
             <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
                 <CellTemplate>
-                    @* F.6 B.4: Göz ikonu artık Detail sayfasına, kalem Edit'e ayrı ayrı gider. *@
+                    @* F.6 B.4: Göz ikonu Detail sayfasına, kalem Edit'e ayrı ayrı gider. *@
                     <MudTooltip Text="Detay">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility"
                                        Size="Size.Small"
@@ -109,6 +109,18 @@
                                        Color="Color.Default"
                                        OnClick="@(() => NavigateToEdit(context.Item.Id))"
                                        aria-label="Düzenle" />
+                    </MudTooltip>
+                    @*
+                        F.6 C.4: Siteler action — organizasyonun sitelerini göster.
+                        Mimari: Site işlemleri daima Organization context altında,
+                        nested URL: /organizations/{orgId}/sites
+                    *@
+                    <MudTooltip Text="Siteler">
+                        <MudIconButton Icon="@Icons.Material.Filled.Apartment"
+                                       Size="Size.Small"
+                                       Color="Color.Default"
+                                       OnClick="@(() => NavigateToSites(context.Item.Id))"
+                                       aria-label="Siteler" />
                     </MudTooltip>
                 </CellTemplate>
             </TemplateColumn>
@@ -182,4 +194,5 @@
     private void NavigateToCreate() => Nav.NavigateTo("/organizations/new");
     private void NavigateToDetail(Guid id) => Nav.NavigateTo($"/organizations/{id}");
     private void NavigateToEdit(Guid id) => Nav.NavigateTo($"/organizations/{id}/edit");
+    private void NavigateToSites(Guid id) => Nav.NavigateTo($"/organizations/{id}/sites");
 }

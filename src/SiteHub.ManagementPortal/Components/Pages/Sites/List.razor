@@ -1,0 +1,270 @@
+@*
+    Sites/List.razor — Organization context altında Site listesi (nested REST).
+
+    Route: /organizations/{OrganizationId}/sites
+
+    Mimari (F.6 C.4):
+      - Site işlemleri daima Organization context'i altında
+      - URL'den OrganizationId alınır → bu org'un site'ları listelenir
+      - "Flat /sites" YOK — C.1 cleanup'ta geri alındı
+      - Nav menüde "Siteler" girişi YOK — yalnızca Organizasyonlar > [Org] > Siteler akışı
+
+    Bu ilk versiyon (C.4) SADECE LİSTELEME:
+      - "+ Yeni Site" butonu YOK (C.3 Site Form bitince eklenir)
+      - Satırlarda Detay/Düzenle ikonları YOK (C.5/C.3 bitince eklenir)
+      - Organization List'e uyumlu pattern (SiteHubDataGrid + arama + switch)
+*@
+@page "/organizations/{OrganizationId:guid}/sites"
+@rendermode InteractiveServer
+
+@using SiteHub.Contracts.Common
+@using SiteHub.Contracts.Organizations
+@using SiteHub.Contracts.Sites
+@using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared
+
+@inject ISitesApi SitesApi
+@inject IOrganizationsApi OrganizationsApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_organizationName ?? "Siteler") — SiteHub</PageTitle>
+
+@* Breadcrumb: Organizasyonlar > [Org Adı] > Siteler (ikisi de tıklanabilir) *@
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
+    <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
+        <MudText Typo="Typo.body2">Organizasyonlar</MudText>
+    </MudLink>
+    <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+             Size="Size.Small"
+             Style="color: var(--mud-palette-text-secondary);" />
+    <MudLink Href="@($"/organizations/{OrganizationId}")"
+             Color="Color.Primary" Underline="Underline.Hover">
+        <MudText Typo="Typo.body2">@(_organizationName ?? "...")</MudText>
+    </MudLink>
+    <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+             Size="Size.Small"
+             Style="color: var(--mud-palette-text-secondary);" />
+    <MudText Typo="Typo.body2"
+             Style="color: var(--mud-palette-text-secondary);">
+        Siteler
+    </MudText>
+</MudStack>
+
+@if (_organizationLoadFailed)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3">
+        Organizasyon yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.
+        <MudButton OnClick="@(() => Nav.NavigateTo("/organizations"))"
+                   Variant="Variant.Text" Class="ml-2">
+            Organizasyonlara Dön
+        </MudButton>
+    </MudAlert>
+}
+else
+{
+    @* Başlık + alt metin (Organization adı dahil) *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight:600">Siteler</MudText>
+            @if (_organizationName is not null)
+            {
+                <MudText Typo="Typo.body2" Style="color:#6B7280">
+                    @_organizationName — yönetilen apartman/kompleks listesi.
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Style="color:#6B7280">
+                    Yükleniyor...
+                </MudText>
+            }
+        </div>
+        <MudSpacer />
+        @*
+            "+ Yeni Site" butonu C.3 Site Form bitince eklenecek.
+            Plan: /organizations/{orgId}/sites/new rotası.
+        *@
+    </MudStack>
+
+    <MudPaper Elevation="1" Class="pa-4">
+
+        @* Toolbar: arama + durum filter — Organization List pattern'i *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Kod, ad, ticari ünvan, adres, VKN, IBAN..."
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          DebounceInterval="300"
+                          Immediate="true"
+                          Clearable="true"
+                          Style="max-width:420px" />
+
+            <MudSpacer />
+
+            <MudSwitch T="bool" @bind-Value="_onlyActive"
+                       @bind-Value:after="RefreshAsync"
+                       Color="Color.Primary"
+                       Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
+        </MudStack>
+
+        @* Reusable tablo wrapper — Organization List ile aynı bileşen *@
+        @*
+            Kolonlar (OrganizationName YOK — zaten başlıkta ve breadcrumb'da):
+              Kod | Ad | Ticari Ünvan | Adres | VKN | IBAN | Durum
+
+            "İşlemler" kolonu yok — C.3/C.5 gelince eklenir.
+        *@
+        <SiteHubDataGrid T="SiteListItemDto"
+                         ServerData="LoadServerData"
+                         @ref="_grid">
+            <Columns>
+                <PropertyColumn Property="x => x.Code" Title="Kod" />
+                <PropertyColumn Property="x => x.Name" Title="Ad" />
+                <PropertyColumn Property="x => x.CommercialTitle" Title="Ticari Ünvan" />
+                <PropertyColumn Property="x => x.Address" Title="Adres" />
+                <PropertyColumn Property="x => x.TaxId" Title="VKN" />
+                <PropertyColumn Property="x => x.Iban" Title="IBAN" />
+                <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
+                    <CellTemplate>
+                        @* Durum badge'i — Organization List ile aynı workaround
+                           (MudChip MudBlazor 9.0.0 sessiz render fail, §5.5 Öğrenim 9) *@
+                        @if (context.Item.IsActive)
+                        {
+                            <div style="display: inline-flex; align-items: center; padding: 2px 10px;
+                                        border-radius: 999px; background-color: var(--mud-palette-success);
+                                        color: var(--mud-palette-success-contrastText); font-size: 0.75rem;
+                                        font-weight: 500; line-height: 1.2;">
+                                Aktif
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="display: inline-flex; align-items: center; padding: 2px 10px;
+                                        border-radius: 999px; background-color: transparent;
+                                        border: 1px solid var(--mud-palette-action-disabled);
+                                        color: var(--mud-palette-text-secondary); font-size: 0.75rem;
+                                        font-weight: 500; line-height: 1.2;">
+                                Pasif
+                            </div>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="ma-4">
+                    Bu organizasyonda gösterilecek site yok.
+                    @if (!string.IsNullOrWhiteSpace(_search))
+                    {
+                        <span> Arama kriterlerinizi gevşetin.</span>
+                    }
+                </MudAlert>
+            </NoRecordsContent>
+        </SiteHubDataGrid>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Guid OrganizationId { get; set; }
+
+    private SiteHubDataGrid<SiteListItemDto>? _grid;
+    private string? _search;
+    private bool _onlyActive = true;
+
+    private string? _organizationName;
+    private bool _organizationLoadFailed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // PROJECT_STATE §5.5 Teknik Öğrenim 1: prerender + HttpClient auth tuzağı.
+        // OnInitializedAsync yerine OnAfterRenderAsync(firstRender) kullanılır.
+        if (firstRender)
+        {
+            await LoadOrganizationNameAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadOrganizationNameAsync()
+    {
+        try
+        {
+            var org = await OrganizationsApi.GetByIdAsync(OrganizationId);
+            if (org is null)
+            {
+                _organizationLoadFailed = true;
+                return;
+            }
+            _organizationName = org.Name;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Organizasyon yüklenemedi: {ex.Message}", Severity.Error);
+            _organizationLoadFailed = true;
+        }
+    }
+
+    private async Task<GridData<SiteListItemDto>> LoadServerData(
+        GridState<SiteListItemDto> state, CancellationToken ct)
+    {
+        // Organization yüklenemediyse grid'i de yükleme (error state zaten gösterilmiş)
+        if (_organizationLoadFailed)
+        {
+            return new GridData<SiteListItemDto>
+            {
+                Items = Array.Empty<SiteListItemDto>(),
+                TotalItems = 0
+            };
+        }
+
+        try
+        {
+            var result = await SitesApi.GetByOrganizationAsync(
+                organizationId: OrganizationId,
+                page: state.Page + 1,
+                pageSize: state.PageSize,
+                search: string.IsNullOrWhiteSpace(_search) ? null : _search,
+                includeInactive: !_onlyActive,
+                ct: ct);
+
+            return new GridData<SiteListItemDto>
+            {
+                Items = result.Items,
+                TotalItems = result.TotalCount
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new GridData<SiteListItemDto>
+            {
+                Items = Array.Empty<SiteListItemDto>(),
+                TotalItems = 0
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Siteler yüklenemedi: {ex.Message}", Severity.Error);
+            return new GridData<SiteListItemDto>
+            {
+                Items = Array.Empty<SiteListItemDto>(),
+                TotalItems = 0
+            };
+        }
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_grid is not null)
+            await _grid.ReloadAsync();
+    }
+}
