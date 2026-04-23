@@ -12,9 +12,8 @@ namespace SiteHub.ManagementPortal.Endpoints.Sites;
 /// <summary>
 /// Site (apartman/kompleks) CRUD endpoint'leri.
 ///
-/// <para><b>URL pattern — Nested + Flat REST:</b></para>
+/// <para><b>URL pattern — Nested REST (Organization context URL'den):</b></para>
 /// <list type="bullet">
-///   <item><c>GET /api/sites</c> — TÜM Site'lar (flat, RLS filtreler) <b>← F.6 C.1 yeni</b></item>
 ///   <item><c>GET /api/organizations/{orgId}/sites</c> — Organization'ın Site listesi</item>
 ///   <item><c>POST /api/organizations/{orgId}/sites</c> — Yeni Site</item>
 ///   <item><c>GET /api/sites/{id}</c> — Site detay (direct ID lookup)</item>
@@ -23,14 +22,16 @@ namespace SiteHub.ManagementPortal.Endpoints.Sites;
 ///   <item><c>DELETE /api/sites/{id}</c> — Soft delete</item>
 /// </list>
 ///
+/// <para><b>Mimari karar (F.6 C.1 cleanup, 2026-04-22):</b> Flat <c>GET /api/sites</c>
+/// endpoint'i geri alındı. Kullanıcı kararı: Site işlemleri daima Organization
+/// context'i altında yapılır (önce Organization seçilir). Flat endpoint UI'da
+/// kullanılmadığı için sade kalır. İleride rapor/export ihtiyacı doğarsa geri eklenir.</para>
+///
+/// <para><b>OrganizationName alanı KORUNDU:</b> Nested endpoint'lerin response'unda
+/// hâlâ dolu gelir — breadcrumb ve başlıkta "ABC Yönetim > Siteler" gösterimi için.</para>
+///
 /// <para><b>Yetki (Faz F MVP):</b> authenticated yeterli. Gerçek permission check
 /// (<c>site.create</c>, <c>site.edit</c>) ileride eklenir.</para>
-///
-/// <para><b>F.6 Cleanup:</b> Response DTO'ları (SiteListItemDto / SiteDetailDto / PagedResult)
-/// artık Contracts'tan geliyor. Organizations hack-import'u kaldırıldı.</para>
-///
-/// <para><b>F.6 C.1:</b> Flat <c>GET /api/sites</c> endpoint'i eklendi. Response'ta
-/// <c>OrganizationName</c> alanı mevcut (nested endpoint'te de tutarlı).</para>
 /// </summary>
 public sealed class SiteEndpoints : IEndpointModule
 {
@@ -45,44 +46,17 @@ public sealed class SiteEndpoints : IEndpointModule
         orgScoped.MapGet("/", GetListByOrganizationAsync).WithName("GetSitesByOrganization");
         orgScoped.MapPost("/", CreateAsync).WithName("CreateSite");
 
-        // Direct-ID group (tek Site üzerinde işlemler + flat listeleme)
+        // Direct-ID group (tek Site üzerinde işlemler)
         var byId = app.MapGroup("/api/sites")
             .WithTags("Sites")
             .RequireAuthorization()
             .DisableAntiforgery();
-
-        // F.6 C.1: Flat listeleme — tüm Organization'ların Site'ları (RLS filtreler)
-        byId.MapGet("/", GetAllAsync).WithName("GetAllSites");
 
         byId.MapGet("/{id:guid}", GetByIdAsync).WithName("GetSiteById");
         byId.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateSite");
         byId.MapPost("/{id:guid}/activate", ActivateAsync).WithName("ActivateSite");
         byId.MapPost("/{id:guid}/deactivate", DeactivateAsync).WithName("DeactivateSite");
         byId.MapDelete("/{id:guid}", DeleteAsync).WithName("DeleteSite");
-    }
-
-    // ─── GET /api/sites (flat list — F.6 C.1) ───────────────────────────────
-
-    public sealed record FlatListQueryParams(
-        int Page = 1,
-        int PageSize = 20,
-        string? Search = null,
-        bool IncludeInactive = false,
-        Guid? OrganizationId = null);
-
-    private static async Task<Ok<PagedResult<SiteListItemDto>>> GetAllAsync(
-        [AsParameters] FlatListQueryParams p,
-        IMediator mediator,
-        CancellationToken ct)
-    {
-        var result = await mediator.Send(
-            new GetAllSitesQuery(
-                Page: p.Page,
-                PageSize: p.PageSize,
-                SearchText: p.Search,
-                IncludeInactive: p.IncludeInactive,
-                OrganizationId: p.OrganizationId), ct);
-        return TypedResults.Ok(result);
     }
 
     // ─── GET /api/organizations/{orgId}/sites ───────────────────────────────
