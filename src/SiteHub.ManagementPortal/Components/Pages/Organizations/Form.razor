@@ -10,6 +10,14 @@
       - Submit → IOrganizationsApi.CreateAsync / UpdateAsync
       - Başarı: Snackbar + /organizations listesine dön
       - Hata: Snackbar + form'da kal, hatayı göster
+
+    F.6 Form Revision (2026-04-22):
+      - Detail sayfası ile aynı düzen (MudContainer Large, ortalanmış)
+      - Breadcrumb: "Organizasyonlar › Yeni" veya "Organizasyonlar › Düzenle"
+      - Input'larda ikon (Business, Badge, Phone, Email, LocationOn, Gavel)
+      - Margin.Normal (önceki Dense yerine standart Material spacing)
+      - "İptal" → "Vazgeç" (Warning renk, amber, tema uyumlu)
+      - Dirty check: form'da değişiklik yoksa direkt çıkar, varsa onay sor
 *@
 @page "/organizations/new"
 @page "/organizations/{Id:guid}/edit"
@@ -17,145 +25,176 @@
 
 @using SiteHub.Contracts.Organizations
 @using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared.Dialogs
 
 @inject IOrganizationsApi OrganizationsApi
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>@(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon") — SiteHub</PageTitle>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
-    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                   OnClick="@(() => Nav.NavigateTo("/organizations"))"
-                   aria-label="Geri"
-                   Size="Size.Small" />
-    <div>
-        <MudText Typo="Typo.h5" Style="font-weight:600">
-            @(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon")
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+
+    @* Breadcrumb — MudBlazor 9.0.0 native component sessiz render fail yapıyor,
+       primitif bileşenlerle (Detail.razor ile aynı pattern) *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
+        <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
+            <MudText Typo="Typo.body2">Organizasyonlar</MudText>
+        </MudLink>
+        <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                 Size="Size.Small"
+                 Style="color: var(--mud-palette-text-secondary);" />
+        <MudText Typo="Typo.body2"
+                 Style="color: var(--mud-palette-text-secondary);">
+            @(_isEditMode ? "Düzenle" : "Yeni")
         </MudText>
-        @if (_isEditMode && _loadedDetail is not null)
-        {
-            <MudText Typo="Typo.caption" Style="color:#64748B">
-                Kod: @_loadedDetail.Code
-                · Oluşturma: @_loadedDetail.CreatedAt.ToString("dd.MM.yyyy HH:mm")
+    </MudStack>
+
+    @* Başlık + alt metin *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h5" Style="font-weight:600">
+                @(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon")
             </MudText>
-        }
-    </div>
-</MudStack>
+            @if (_isEditMode && _loadedDetail is not null)
+            {
+                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
+                    Kod: @_loadedDetail.Code
+                    · Oluşturma: @_loadedDetail.CreatedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm")
+                </MudText>
+            }
+        </div>
+    </MudStack>
 
-@if (_initialLoadFailed)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
-        Organizasyon yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.
-        <MudButton OnClick="@(() => Nav.NavigateTo("/organizations"))"
-                   Variant="Variant.Text" Size="Size.Small" Class="ml-2">
-            Listeye dön
-        </MudButton>
-    </MudAlert>
-}
-else if (_isEditMode && _loadedDetail is null && !_initialLoadFailed)
-{
-    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-    <MudText Class="ml-2 d-inline" Typo="Typo.body2">Yükleniyor...</MudText>
-}
-else
-{
-    <MudPaper Elevation="1" Class="pa-4" Style="max-width:960px;">
-        <MudForm @ref="_form" Model="_model" ValidationDelay="0">
-            <MudGrid Spacing="3">
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Name"
-                                  Label="Firma Adı"
-                                  Required="true"
-                                  RequiredError="Firma adı zorunludur."
-                                  MaxLength="200"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  Immediate="true" />
-                </MudItem>
+    @if (_initialLoadFailed)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">
+            Organizasyon yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.
+            <MudButton OnClick="@(() => Nav.NavigateTo("/organizations"))"
+                       Variant="Variant.Text" Class="ml-2">
+                Listeye Dön
+            </MudButton>
+        </MudAlert>
+    }
+    else if (_isEditMode && _loadedDetail is null && !_initialLoadFailed)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    }
+    else
+    {
+        <MudPaper Elevation="1" Class="pa-4">
+            <MudForm @ref="_form" Model="_model" ValidationDelay="0">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Name"
+                                      Label="Firma Adı"
+                                      Required="true"
+                                      RequiredError="Firma adı zorunludur."
+                                      MaxLength="200"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Business"
+                                      Immediate="true" />
+                    </MudItem>
 
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.CommercialTitle"
-                                  Label="Ticari Ünvan"
-                                  Required="true"
-                                  RequiredError="Ticari ünvan zorunludur."
-                                  MaxLength="300"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  Immediate="true" />
-                </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.CommercialTitle"
+                                      Label="Ticari Ünvan"
+                                      Required="true"
+                                      RequiredError="Ticari ünvan zorunludur."
+                                      MaxLength="300"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Gavel"
+                                      Immediate="true" />
+                    </MudItem>
 
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.TaxId"
-                                  Label="VKN (Vergi Numarası)"
-                                  Required="true"
-                                  RequiredError="VKN zorunludur."
-                                  Validation="@(new Func<string, string?>(ValidateTaxId))"
-                                  MaxLength="10"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  Immediate="true"
-                                  HelperText="En fazla 10 rakam. 10'dan azsa başına otomatik 0 eklenir. Tamamı sıfır olamaz." />
-                </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.TaxId"
+                                      Label="VKN (Vergi Numarası)"
+                                      Required="true"
+                                      RequiredError="VKN zorunludur."
+                                      Validation="@(new Func<string, string?>(ValidateTaxId))"
+                                      MaxLength="10"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Badge"
+                                      Immediate="true"
+                                      HelperText="En fazla 10 rakam. 10'dan azsa başına otomatik 0 eklenir. Tamamı sıfır olamaz." />
+                    </MudItem>
 
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Phone"
-                                  Label="Telefon"
-                                  Mask="@_phoneMask"
-                                  Validation="@(new Func<string?, string?>(ValidatePhone))"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  HelperText="0(5XX) XXX XX XX formatında girin." />
-                </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Phone"
+                                      Label="Telefon"
+                                      Mask="@_phoneMask"
+                                      Validation="@(new Func<string?, string?>(ValidatePhone))"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Phone"
+                                      HelperText="0(5XX) XXX XX XX formatında girin." />
+                    </MudItem>
 
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_model.Email"
-                                  Label="E-posta"
-                                  Validation="@(new Func<string?, string?>(ValidateEmail))"
-                                  MaxLength="200"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  InputType="InputType.Email"
-                                  Immediate="true" />
-                </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_model.Email"
+                                      Label="E-posta"
+                                      Validation="@(new Func<string?, string?>(ValidateEmail))"
+                                      MaxLength="200"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Email"
+                                      InputType="InputType.Email"
+                                      Immediate="true" />
+                    </MudItem>
 
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.Address"
-                                  Label="Adres"
-                                  Lines="2"
-                                  MaxLength="500"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" />
-                </MudItem>
-            </MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_model.Address"
+                                      Label="Adres"
+                                      Lines="2"
+                                      MaxLength="500"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Normal"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.LocationOn" />
+                    </MudItem>
+                </MudGrid>
 
-            <MudStack Row="true" Spacing="2" Class="mt-4" Justify="Justify.FlexEnd">
-                <MudButton Variant="Variant.Text"
-                           OnClick="@(() => Nav.NavigateTo("/organizations"))"
-                           Disabled="_submitting"
-                           Size="Size.Small">
-                    İptal
-                </MudButton>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           OnClick="SubmitAsync"
-                           Disabled="_submitting"
-                           Size="Size.Small"
-                           StartIcon="@(_submitting ? null : (_isEditMode ? Icons.Material.Filled.Save : Icons.Material.Filled.Add))">
-                    @if (_submitting)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Kaydediliyor...</span>
-                    }
-                    else
-                    {
-                        <span>@(_isEditMode ? "Kaydet" : "Oluştur")</span>
-                    }
-                </MudButton>
-            </MudStack>
-        </MudForm>
-    </MudPaper>
-}
+                @* Action bar — sağa yaslı, "Vazgeç" solda (Warning), "Kaydet/Oluştur" sağda (Primary) *@
+                <MudStack Row="true" Spacing="2" Class="mt-4" Justify="Justify.FlexEnd">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="CancelAsync"
+                               Disabled="_submitting">
+                        Vazgeç
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="SubmitAsync"
+                               Disabled="_submitting"
+                               StartIcon="@(_submitting ? null : (_isEditMode ? Icons.Material.Filled.Save : Icons.Material.Filled.Add))">
+                        @if (_submitting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Kaydediliyor...</span>
+                        }
+                        else
+                        {
+                            <span>@(_isEditMode ? "Kaydet" : "Oluştur")</span>
+                        }
+                    </MudButton>
+                </MudStack>
+            </MudForm>
+        </MudPaper>
+    }
+
+</MudContainer>
 
 @code {
     [Parameter] public Guid? Id { get; set; }
@@ -163,6 +202,7 @@ else
     private bool _isEditMode => Id.HasValue;
     private MudForm? _form;
     private FormModel _model = new();
+    private FormModel _initialSnapshot = new();   // Dirty check için referans
     private OrganizationDetailDto? _loadedDetail;
     private bool _initialLoadFailed;
     private bool _submitting;
@@ -182,21 +222,50 @@ else
         public string? Address { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
+
+        /// <summary>Snapshot karşılaştırması için deep clone.</summary>
+        public FormModel Clone() => new()
+        {
+            Name = Name,
+            CommercialTitle = CommercialTitle,
+            TaxId = TaxId,
+            Address = Address,
+            Phone = Phone,
+            Email = Email
+        };
+
+        /// <summary>
+        /// Alan-alan eşitlik karşılaştırması. null ve boş string eşit sayılır
+        /// (kullanıcı bir alana girip silerse "değişmemiş" kabul edelim).
+        /// </summary>
+        public bool EqualsByFields(FormModel other) =>
+            Eq(Name, other.Name) &&
+            Eq(CommercialTitle, other.CommercialTitle) &&
+            Eq(TaxId, other.TaxId) &&
+            Eq(Address, other.Address) &&
+            Eq(Phone, other.Phone) &&
+            Eq(Email, other.Email);
+
+        private static bool Eq(string? a, string? b) =>
+            (a ?? string.Empty) == (b ?? string.Empty);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // NOT: OnInitializedAsync DEĞİL — burada yükleriz.
-        // Sebep: `@rendermode InteractiveServer` default prerender=true.
-        // Prerender aşamasında HttpContext cookie'leri outgoing HttpClient'a
-        // tam olarak taşınmıyor → API 401/redirect → JSON değil HTML yanıt →
-        // deserialize patlar ("'S' is an invalid start of a value").
-        // OnAfterRenderAsync(firstRender=true) interactive circuit kurulduktan
-        // sonra çalışır, cookie'ler düzgün gider.
-        if (firstRender && _isEditMode && Id.HasValue)
+        // PROJECT_STATE §5.5 Teknik Öğrenim 1: prerender + HttpClient auth tuzağı.
+        // OnInitializedAsync yerine OnAfterRenderAsync(firstRender) kullanılır.
+        if (firstRender)
         {
-            await LoadExistingAsync(Id.Value);
-            StateHasChanged();
+            if (_isEditMode && Id.HasValue)
+            {
+                await LoadExistingAsync(Id.Value);
+                StateHasChanged();
+            }
+            else
+            {
+                // Create mode: snapshot boş form'dur → kullanıcı ilk karaktere basınca dirty olur
+                _initialSnapshot = _model.Clone();
+            }
         }
     }
 
@@ -221,12 +290,58 @@ else
                 Phone = detail.Phone,
                 Email = detail.Email
             };
+            // Dirty check için snapshot — yüklenen değerlerle aynı
+            _initialSnapshot = _model.Clone();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Yükleme hatası: {ex.Message}", Severity.Error);
             _initialLoadFailed = true;
         }
+    }
+
+    // ─── Cancel (Vazgeç) + Dirty Check ──────────────────────────────────────
+
+    /// <summary>
+    /// Form "dirty" (kirli) mi? Yüklenen snapshot ile mevcut model farklı mı?
+    /// </summary>
+    private bool IsDirty() => !_model.EqualsByFields(_initialSnapshot);
+
+    private async Task CancelAsync()
+    {
+        if (!IsDirty())
+        {
+            // Form'a dokunulmadı veya yapılan değişiklikler geri alındı → direkt çık
+            Nav.NavigateTo("/organizations");
+            return;
+        }
+
+        // Dirty → onay iste
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, "Yaptığınız değişiklikler kaydedilmeyecek. Devam edilsin mi?" },
+            { x => x.ConfirmText, "Evet, Vazgeç" },
+            { x => x.CancelText, "Hayır, Devam Et" },
+            { x => x.ConfirmColor, Color.Warning },
+            { x => x.ConfirmIcon, Icons.Material.Filled.Cancel }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Sayfadan ayrılmak mı istiyorsunuz?", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            Nav.NavigateTo("/organizations");
+        }
+        // Canceled → sayfada kal
     }
 
     // ─── Validation ─────────────────────────────────────────────────────────
