@@ -1,7 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SiteHub.Application.Abstractions.Persistence;
-using SiteHub.Application.Features.Organizations;  // PagedResult<>
+using SiteHub.Contracts.Common;
+using SiteHub.Contracts.Sites;
 using SiteHub.Domain.Tenancy.Organizations;
 using SiteHub.Domain.Text;
 
@@ -15,6 +16,9 @@ namespace SiteHub.Application.Features.Sites;
 ///
 /// <para><b>Arama:</b> SearchText doluysa Site.SearchText kolonunda LIKE (Code + Name +
 /// CommercialTitle + Address + TaxId + Iban birleşik aranır).</para>
+///
+/// <para><b>F.6 Cleanup:</b> Response DTO'ları Contracts.Sites'a konsolide edildi.
+/// PagedResult&lt;T&gt; artık Contracts.Common'dan geliyor.</para>
 /// </summary>
 public sealed record GetSitesQuery(
     Guid OrganizationId,
@@ -82,6 +86,12 @@ public sealed class GetSitesHandler
                 s.CreatedAt))
             .ToListAsync(ct);
 
-        return new PagedResult<SiteListItemDto>(items, totalCount, page, pageSize);
+        return new PagedResult<SiteListItemDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 }

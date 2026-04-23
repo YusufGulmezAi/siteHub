@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using SiteHub.Application.Features.Organizations;
+using SiteHub.Contracts.Common;
+using SiteHub.Contracts.Organizations;
 
 namespace SiteHub.ManagementPortal.Endpoints.Organizations;
 
@@ -12,6 +14,9 @@ namespace SiteHub.ManagementPortal.Endpoints.Organizations;
 ///
 /// <para><b>Yetki (Faz E MVP):</b> <see cref="RequireAuthorization"/> — authenticated kullanıcı yeterli.
 /// Gerçek permission check (<c>firm.create</c>, <c>firm.edit</c>, vb.) Faz F'de eklenir.</para>
+///
+/// <para><b>F.6 Cleanup:</b> Response DTO'ları (OrganizationListItemDto / OrganizationDetailDto /
+/// PagedResult) artık Contracts'tan geliyor. Command/Query + Result tipleri Application'da kalır.</para>
 /// </summary>
 public sealed class OrganizationEndpoints : IEndpointModule
 {

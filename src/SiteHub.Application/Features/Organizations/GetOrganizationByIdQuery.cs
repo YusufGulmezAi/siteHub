@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SiteHub.Application.Abstractions.Persistence;
+using SiteHub.Contracts.Organizations;
 using SiteHub.Domain.Tenancy.Organizations;
 
 namespace SiteHub.Application.Features.Organizations;

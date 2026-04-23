@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using SiteHub.Application.Features.Organizations;  // PagedResult<>
 using SiteHub.Application.Features.Sites;
+using SiteHub.Contracts.Common;
+using SiteHub.Contracts.Sites;
 
 namespace SiteHub.ManagementPortal.Endpoints.Sites;
 
@@ -23,6 +24,9 @@ namespace SiteHub.ManagementPortal.Endpoints.Sites;
 ///
 /// <para><b>Yetki (Faz F MVP):</b> authenticated yeterli. Gerçek permission check
 /// (<c>site.create</c>, <c>site.edit</c>) ileride eklenir.</para>
+///
+/// <para><b>F.6 Cleanup:</b> Response DTO'ları (SiteListItemDto / SiteDetailDto / PagedResult)
+/// artık Contracts'tan geliyor. Organizations hack-import'u kaldırıldı.</para>
 /// </summary>
 public sealed class SiteEndpoints : IEndpointModule
 {

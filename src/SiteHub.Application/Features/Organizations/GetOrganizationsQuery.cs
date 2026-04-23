@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SiteHub.Application.Abstractions.Persistence;
+using SiteHub.Contracts.Common;
+using SiteHub.Contracts.Organizations;
 using SiteHub.Domain.Text;
 
 namespace SiteHub.Application.Features.Organizations;
@@ -17,6 +19,9 @@ namespace SiteHub.Application.Features.Organizations;
 ///   <item><see cref="IncludeInactive"/>=true: pasifleri de getir</item>
 ///   <item><see cref="IncludeDeleted"/>=true: silinmişleri de getir (admin için)</item>
 /// </list>
+///
+/// <para><b>F.6 Cleanup:</b> Response DTO'ları Contracts.Organizations'a konsolide edildi.
+/// PagedResult&lt;T&gt; artık Contracts.Common'dan geliyor (sealed class init pattern).</para>
 /// </summary>
 public sealed record GetOrganizationsQuery(
     int Page = 1,
@@ -81,6 +86,13 @@ public sealed class GetOrganizationsHandler
                 o.CreatedAt))
             .ToListAsync(ct);
 
-        return new PagedResult<OrganizationListItemDto>(items, totalCount, page, pageSize);
+        // Contracts.Common.PagedResult<T> init pattern (sealed class, required init properties).
+        return new PagedResult<OrganizationListItemDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 }
