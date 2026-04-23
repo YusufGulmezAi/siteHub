@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using SiteHub.Application.Abstractions.Authorization;
+using SiteHub.Application.Features.Authentication;
 
 namespace SiteHub.Application;
 
@@ -19,6 +21,9 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssemblyContaining<IApplicationMarker>(
             includeInternalTypes: true);
+
+        // F.6 C.2 — Permission computation (login'de çağrılır)
+        services.AddScoped<IPermissionComputer, PermissionComputer>();
 
         return services;
     }

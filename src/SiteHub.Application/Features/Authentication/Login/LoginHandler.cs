@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SiteHub.Application.Abstractions.Authentication;
+using SiteHub.Application.Abstractions.Authorization;
 using SiteHub.Application.Abstractions.Persistence;
 using SiteHub.Application.Abstractions.Sessions;
 using SiteHub.Domain.Identity;
@@ -25,8 +26,9 @@ namespace SiteHub.Application.Features.Authentication.Login;
 ///   <item>IsActive + ValidFrom/To + IpWhitelist + LoginSchedule kontrolleri (ayrı hata kodları).</item>
 ///   <item>Rehash gerekirse otomatik rehash.</item>
 ///   <item>Memberships topla (session snapshot için).</item>
+///   <item><b>F.6 C.2:</b> PermissionComputer ile effective permission set hesapla.</item>
 ///   <item>Eski session'ları kapat (tek oturum kuralı).</item>
-///   <item>Yeni DeviceId + Session oluştur, Redis'e yaz.</item>
+///   <item>Yeni DeviceId + Session oluştur, Redis'e yaz (permissions dahil).</item>
 /// </list>
 ///
 /// <para>GÜVENLİK:</para>
@@ -47,6 +49,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
     private readonly ISiteHubDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ISessionStore _sessionStore;
+    private readonly IPermissionComputer _permissionComputer;
     private readonly TimeProvider _time;
     private readonly LoginSecurityOptions _options;
     private readonly ILogger<LoginHandler> _logger;
@@ -55,6 +58,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         ISiteHubDbContext db,
         IPasswordHasher passwordHasher,
         ISessionStore sessionStore,
+        IPermissionComputer permissionComputer,
         TimeProvider time,
         IOptions<LoginSecurityOptions> options,
         ILogger<LoginHandler> logger)
@@ -62,6 +66,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         _db = db;
         _passwordHasher = passwordHasher;
         _sessionStore = sessionStore;
+        _permissionComputer = permissionComputer;
         _time = time;
         _options = options.Value;
         _logger = logger;
@@ -167,10 +172,13 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         // 8. Memberships topla
         var memberships = await LoadMembershipsAsync(account.Id, now, ct);
 
-        // 9. Eski session'ları kapat (tek oturum)
+        // 9. F.6 C.2: Permission set hesapla (membership + role + cascade)
+        var permissions = await _permissionComputer.ComputeAsync(account.Id, now, ct);
+
+        // 10. Eski session'ları kapat (tek oturum)
         var closedOld = await _sessionStore.DeleteByLoginAccountAsync(account.Id, ct);
 
-        // 10. DeviceId + Session
+        // 11. DeviceId + Session
         var deviceId = GenerateDeviceId();
 
         var session = Session.Create(
@@ -183,6 +191,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
             userAgent: command.ClientContext.UserAgent,
             isMobile: command.ClientContext.IsMobile,
             availableContexts: memberships,
+            permissions: permissions,
             now: now,
             pending2FA: account.TwoFactorEnabled,
             twoFactorEnabled: account.TwoFactorEnabled);
@@ -191,8 +200,10 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, LoginResult>
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Login ba\u015far\u0131l\u0131: person={PersonId}, account={AccountId}, session={SessionId}, pending2FA={Pending2FA}, eski kapat\u0131ld\u0131={Count}.",
-            person.Id, account.Id, session.SessionId, session.Pending2FA, closedOld.Count);
+            "Login ba\u015far\u0131l\u0131: person={PersonId}, account={AccountId}, session={SessionId}, " +
+            "permContexts={ContextCount}, pending2FA={Pending2FA}, eski kapat\u0131ld\u0131={Count}.",
+            person.Id, account.Id, session.SessionId,
+            permissions.ByContext.Count, session.Pending2FA, closedOld.Count);
 
         return LoginResult.Success(session.SessionId, deviceId, closedOld, session.Pending2FA);
     }

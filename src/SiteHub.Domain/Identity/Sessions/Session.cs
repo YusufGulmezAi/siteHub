@@ -20,6 +20,10 @@ namespace SiteHub.Domain.Identity.Sessions;
 ///   <item>IP veya DeviceId farklıysa session kapatılır + SecurityEvent</item>
 /// </list>
 ///
+/// <para><b>F.6 C.2:</b> <see cref="Permissions"/> alanı eklendi. Login zamanında
+/// <c>PermissionComputer</c> hesaplar, session'la birlikte Redis'e yazılır.
+/// Runtime'da permission kontrolü için <c>ICurrentUserPermissionService</c> kullanılır.</para>
+///
 /// <para>Bu class JSON serialize edilir → property'ler public set olmak zorunda (record init yeter).</para>
 /// </summary>
 public sealed record Session
@@ -63,6 +67,18 @@ public sealed record Session
     public required IReadOnlyList<MembershipSummary> AvailableContexts { get; init; }
 
     /// <summary>
+    /// Kullanıcının tüm context'lerdeki effective permission set'i (F.6 C.2).
+    ///
+    /// <para>Login zamanında <c>PermissionComputer</c> tarafından hesaplanır ve session'a
+    /// eklenir. <see cref="PermissionSet.Has"/> ile runtime'da sorgulanır. System scope
+    /// short-circuit + Organization → Site cascade uygular.</para>
+    ///
+    /// <para>Boş olursa kullanıcının hiç permission'ı yok demektir (yeni membership henüz
+    /// atanmamış kullanıcılar için).</para>
+    /// </summary>
+    public required PermissionSet Permissions { get; init; }
+
+    /// <summary>
     /// 2FA bekliyor mu? true ise session "yar\u0131-aktif" durumda \u2014 sadece
     /// <c>/auth/verify-2fa</c> ve <c>/auth/logout</c> endpoint'lerine eri\u015fim var.
     /// Ba\u015far\u0131l\u0131 TOTP verify'dan sonra false'a d\u00fc\u015fer.
@@ -82,6 +98,7 @@ public sealed record Session
         string userAgent,
         bool isMobile,
         IReadOnlyList<MembershipSummary> availableContexts,
+        PermissionSet permissions,
         DateTimeOffset now,
         bool pending2FA = false,
         bool twoFactorEnabled = false)
@@ -102,6 +119,7 @@ public sealed record Session
             LastActivityAt = now,
             ActiveContext = null,
             AvailableContexts = availableContexts,
+            Permissions = permissions,
             Pending2FA = pending2FA,
         };
     }

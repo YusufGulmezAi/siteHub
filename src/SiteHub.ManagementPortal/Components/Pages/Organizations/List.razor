@@ -5,6 +5,9 @@
 @using SiteHub.Contracts.Organizations
 @using SiteHub.ManagementPortal.Services.Api
 @using SiteHub.ManagementPortal.Components.Shared
+@using SiteHub.Domain.Identity.Authorization
+@using SiteHub.Shared.Authorization
+@using SiteHub.ManagementPortal.Components.Shared.Authorization
 
 @inject IOrganizationsApi OrganizationsApi
 @inject NavigationManager Nav
@@ -20,11 +23,14 @@
         </MudText>
     </div>
     <MudSpacer />
+	<HasPermission Required="@Permissions.Organization.Create"
+               ContextType="MembershipContextType.System">
     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Add"
                OnClick="NavigateToCreate">
         Yeni Organizasyon
     </MudButton>
+</HasPermission>
 </MudStack>
 
 <MudPaper Elevation="1" Class="pa-4">
@@ -97,18 +103,28 @@
                 <CellTemplate>
                     @* F.6 B.4: Göz ikonu Detail sayfasına, kalem Edit'e ayrı ayrı gider. *@
                     <MudTooltip Text="Detay">
+		<HasPermission Required="@Permissions.Organization.Read"
+               		ContextType="MembershipContextType.Organization"
+               		ContextId="@context.Item.Id">
                         <MudIconButton Icon="@Icons.Material.Filled.Visibility"
                                        Size="Size.Small"
                                        Color="Color.Primary"
                                        OnClick="@(() => NavigateToDetail(context.Item.Id))"
                                        aria-label="Detay" />
-                    </MudTooltip>
+                </HasPermission>    
+		</MudTooltip>
+		
+		
                     <MudTooltip Text="Düzenle">
+		<HasPermission Required="@Permissions.Organization.Update"
+              		ContextType="MembershipContextType.Organization"
+	               ContextId="@context.Item.Id">
                         <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                        Size="Size.Small"
                                        Color="Color.Default"
                                        OnClick="@(() => NavigateToEdit(context.Item.Id))"
                                        aria-label="Düzenle" />
+		</HasPermission>
                     </MudTooltip>
                     @*
                         F.6 C.4: Siteler action — organizasyonun sitelerini göster.
@@ -116,12 +132,16 @@
                         nested URL: /organizations/{orgId}/sites
                     *@
                     <MudTooltip Text="Siteler">
+		<HasPermission Required="@Permissions.Site.Read"
+        	       ContextType="MembershipContextType.Organization"
+	               ContextId="@context.Item.Id">
                         <MudIconButton Icon="@Icons.Material.Filled.Apartment"
                                        Size="Size.Small"
                                        Color="Color.Default"
                                        OnClick="@(() => NavigateToSites(context.Item.Id))"
                                        aria-label="Siteler" />
-                    </MudTooltip>
+                	</HasPermission>
+		    </MudTooltip>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>

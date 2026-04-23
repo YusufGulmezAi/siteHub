@@ -1,0 +1,69 @@
+@*
+    HasPermission.razor — Permission-aware visibility wrapper (F.6 C.2).
+
+    Kullanım:
+
+    <HasPermission Required="@Permissions.Site.Update"
+                   ContextType="MembershipContextType.Site"
+                   ContextId="@siteId">
+        <MudIconButton Icon="Edit" OnClick="..." />
+    </HasPermission>
+
+    Context parametreleri opsiyonel:
+    - Hiçbiri verilmezse → "herhangi bir context'te bu permission var mı?"
+    - ContextType + ContextId verilirse → o spesifik context'te var mı?
+    - Sadece ContextType → o tipte herhangi bir context'te var mı? (şimdilik first match)
+
+    System scope short-circuit otomatik çalışır — SystemAdmin her zaman geçer.
+
+    Fallback parametresi: Permission yoksa ne göstereceğiz (opsiyonel).
+*@
+@using SiteHub.Application.Abstractions.Authorization
+@using SiteHub.Domain.Identity.Authorization
+
+@inject ICurrentUserPermissionService Perms
+
+@if (_loaded)
+{
+    @if (_allowed)
+    {
+        @ChildContent
+    }
+    else if (Fallback is not null)
+    {
+        @Fallback
+    }
+}
+
+@code {
+    /// <summary>İzin anahtarı (örn. "site.update"). Boşsa herkes geçer.</summary>
+    [Parameter] public string Required { get; set; } = "";
+
+    /// <summary>Context tipi (Organization/Site/System vb.). Null ise any.</summary>
+    [Parameter] public MembershipContextType? ContextType { get; set; }
+
+    /// <summary>Context ID (System için null, diğerlerinde Guid).</summary>
+    [Parameter] public Guid? ContextId { get; set; }
+
+    /// <summary>İzin varsa gösterilecek içerik.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>İzin yoksa gösterilecek içerik (opsiyonel). Null ise hiç render edilmez.</summary>
+    [Parameter] public RenderFragment? Fallback { get; set; }
+
+    private bool _allowed;
+    private bool _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Required))
+        {
+            _allowed = true;
+            _loaded = true;
+            return;
+        }
+
+        _allowed = await Perms.HasAsync(Required, ContextType, ContextId);
+        _loaded = true;
+    }
+}

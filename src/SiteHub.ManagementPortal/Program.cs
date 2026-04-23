@@ -81,6 +81,11 @@ try
     // ─── Cookie Authentication (ADR-0011 §7) ─────────────────────────────────
     builder.Services.AddSiteHubCookieAuthentication();
 
+// ─── F.6 C.2: Permission service (Blazor circuit scoped) ──────────
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<SiteHub.Application.Abstractions.Authorization.ICurrentUserPermissionService,
+        SiteHub.ManagementPortal.Services.Authorization.CurrentUserPermissionService>();
+
     // ─── Demo Services (ileride backend'e bağlanacak) ────────────────────────
     builder.Services.AddSingleton<SiteHub.ManagementPortal.Services.Contexts.DemoContextService>();
 
