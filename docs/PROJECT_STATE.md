@@ -3,7 +3,7 @@
 > **Her yeni seansın başında bu dosyayı oku.** İçinde nerede kaldığımız, temel
 > kararlar ve bir sonraki adım var. Detaylar ADR'lerde.
 
-**Son güncelleme:** 2026-04-22
+**Son güncelleme:** 2026-04-22 (F.6 A.1 → F.6 B.4 + F.6 Cleanup tamamlandı — Organization UI tam bitti, DTO tek kaynakta)
 
 ---
 
@@ -124,9 +124,26 @@ System Admin RLS'yi bypass edebilir ama:
 | F.4 | HttpTenantContext Site→Org resolver (ISiteOrgResolver + IMemoryCache) | ✅ | `4164b72` |
 | F.4 hf | SiteOrgResolver lazy DbContext (circular DI fix) | ✅ | `1e98eba` |
 | F.5 | `tenancy.sites` RLS policy + Program.cs hijyen | ✅ | `d2a4443` |
+| F.6 A.1 | Geography read endpoint'leri + hijyen | ✅ | `3d5417f` |
+| F.6 A.2 | HttpClient altyapısı + typed API clients | ✅ | `ff81635` |
+| F.6 B.2 | Organization listesi (ilk Blazor UI sayfası) | ✅ | `40036b2` |
+| F.6 B.2* | SiteHubDataGrid + tema navy + lokalizasyon | ✅ | `120aa71` |
+| F.6 B.3 | Organization Form (Create + Edit) + API CRUD | ✅ | `dee59ff` |
+| F.6 B.4 | Organization Detail + Delete/Activate UI + List fix | ✅ | `ac3e37c` |
+| F.6 Cleanup | Application DTO'ları Contracts'a konsolide | ✅ | `43752d5` |
 
-**Son commit:** `d2a4443` (2026-04-22)
+**Son commit:** `43752d5` (2026-04-22)
 **Test durumu:** 146 test yeşil. Build temiz. Portal canlı çalışır durumda.
+
+### F.6 Nerede Kaldı?
+
+- **Organization UI tam bitti.** List + Form + Detail + Delete/Activate + durum badge.
+- Göz ikonu Detail sayfasına, kalem Edit'e ayrı ayrı gidiyor (B.4'te düzeltildi).
+- Destructive action'lar (Sil/Pasif) sadece Detail sayfasında — kazara silme riski düşürüldü.
+- Delete reason zorunlu (min 5 karakter, `DeleteConfirmDialog` yeniden kullanılabilir).
+- `ConfirmDialog` + `DeleteConfirmDialog` generic — Site/Resident UI'da aynen çalışır.
+- **Cleanup sonrası:** Application DTO'ları silindi, Contracts tek kaynak. `PagedResult<T>` init pattern (Contracts.Common). Tüm 146 test yeşil.
+- **Site CRUD UI (F.6 C)** sıradaki iş — Organization pattern'i Site'a taşınacak.
 
 ### E-Pre G2-A3 (Integration Tests) — Neden Silindi?
 
@@ -176,31 +193,180 @@ fix pushlanmış olur, migration normal akışla uygulanır.
   `current_login_account_id` session variable'ı set edecek şekilde değişmeli.
   Dikkatli iş, ayrı seans.
 
-## 6. Sıradaki İş — **Faz F.6: Site CRUD UI (MudBlazor)**
+### Faz F.6 Teknik Öğrenimleri + Kararlar
 
-**Amaç:** Organization UI pattern'inin tekrarı. `SitesList.razor`,
-`SiteForm.razor`, `SiteDetail.razor` sayfaları + navigation menüsü.
-Backend hazır (F.3), sadece frontend bağlama.
+**1. Blazor Server prerender + HttpClient auth TUZAĞI** 🔥
 
-### F.6 Kapsamı (tahmin)
+`@rendermode InteractiveServer` default `prerender=true` — prerender aşaması
+sırasında HttpContext cookie'leri outgoing HttpClient'a tam taşınmıyor.
+Sonuç: auth'lu API çağrısı 401 döner, redirect HTML'i gelir, JSON deserialize
+patlar (`'S' is an invalid start of a value`).
 
-- [ ] `Pages/Sites/SitesList.razor` — MudDataGrid, paging, search
-- [ ] `Pages/Sites/SiteForm.razor` — Create/Edit formu (IL/İlçe dropdown,
-      IBAN validation, VKN-only TaxId)
-- [ ] `Pages/Sites/SiteDetail.razor` — readonly görünüm + actions
-- [ ] Navigation — menüye "Siteler" eklenti
-- [ ] URL pattern: `/organizations/{orgId}/sites` (list) + `/sites/{id}`
-      (detail) — nested REST ile hizalı
-- [ ] IL/İlçe cascading dropdown (API: geography endpoints zaten var mı
-      kontrol edilmeli — yoksa F.6.pre olarak geography query endpoint)
+**Çözüm:** `OnInitializedAsync` yerine `OnAfterRenderAsync(firstRender)` +
+`StateHasChanged()`. Interactive circuit kurulduktan sonra cookie düzgün gider.
 
-### F.6 Öncesi Açık Karar
+**Not:** MudDataGrid `ServerData` callback'i zaten interactive render sonrası
+çağrılır, ServerData kullanan sayfalar güvenli. Sorun **manuel OnInitializedAsync**
+HttpClient çağrılarında.
 
-**IL/İlçe dropdown'u nereden beslenecek?**
-- Geography için read-only query endpoint var mı kontrol et
-- Yoksa: yeni endpoint (F.6.pre) veya SQL raw (basit hack) — karar ver
+**2. MudBlazor `Hideable` default FALSE**
 
-**Süre tahmini:** 1.5-2 seans (ilk seansta list+form, ikincisinde detail + polish)
+Column görünürlük toggle (göz ikonu) çalışmıyordu. `PropertyColumn`'a
+`Hideable="true"` vermek gerekiyor — **veya MudDataGrid-level** parametresiyle
+tüm column'lara tek yerden: `Hideable="true"`.
+
+**SiteHubDataGrid wrapper'da** grid seviyesinde açık, tüm liste sayfaları otomatik destekler.
+
+**3. MudBlazor.Translations paketi > kendi localizer**
+
+Kendi `TurkishMudLocalizer` yazmıştık (B.2). MudBlazor'un key adlandırması
+tutarsız (bazı metinler dot notation, bazıları space, bazıları underscore).
+Resmi community paketi `MudBlazor.Translations 3.1.0` tüm bu sorunu çözdü:
+`builder.Services.AddMudTranslations()` tek satır.
+
+**Karar:** Kendi localizer'ımızı yazmayız. MudBlazor.Translations güncel tutar.
+
+**4. Hardcoded CSS `!important` tema'yı bypass etti**
+
+`app.css`'de `.sitehub-sidebar { background: #1F2937 !important; }` vardı.
+Bu `MudTheme.DrawerBackground` palette değerini ezdi, tema değişse bile
+sidebar siyah kalıyordu.
+
+**Pattern:** Blazor + MudBlazor'da renk için **her zaman** palette CSS
+variable'lar kullan: `var(--mud-palette-drawer-background)`. Hardcoded hex +
+`!important` anti-pattern.
+
+**5. Blazor CSS isolation child DOM'a ulaşmıyor**
+
+`SiteHubDataGrid.razor.css` dosyasına yazdığımız stiller MudDataGrid'in
+render ettiği child DOM'a **uygulanmıyordu** (Blazor scope ID'leri sadece
+direct rendered element'lere eklenir). MudBlazor wrapper component'ler
+için özel style hedefleme mümkün değil.
+
+**Çözüm:** Global `app.css`'e taşı ve `.sitehub-data-grid` class'ı ile scope'la.
+
+**6. VKN validation — dev vs production kararı** [DECISION]
+
+Organization VKN için checksum (Gelir İdaresi algoritması) **dev ortamda
+gevşetildi**. `NationalId.CreateVknRelaxed` metodu: 10 hane + rakam + tamamı
+sıfır değil, **checksum yok**.
+
+**Sebep:** Rastgele 10 rakamla dev test yapılabilsin. Gerçek VKN tespiti
+banka entegrasyonunda Gelir İdaresi servisi ile yapılacak.
+
+**CreateVkn (checksum'lı) Site.cs + Identity için korundu** — sadece
+Organization handler'ları Relaxed kullanıyor.
+
+**EF Core converter de Relaxed kullanır** — DB'de checksum'dan geçmeyen
+VKN'ler olabilir (seed + relaxed yazma), okurken patlamasın.
+
+**İlerde tekrar açılacak iş:** ADR-0015 veya F.8+ fazlarda.
+
+**7. Row click navigation KALDIRILDI (kurumsal UI patterni)** [DECISION]
+
+MudDataGrid'te `RowClick` ile sayfaya yönlendirme kötü UX:
+- Kolon seçmek için tıklarsan yanlışlıkla navigation
+- Hover state + click navigation birbirine karışır
+- Columns dialog input click'leri tabloya leak eder
+
+**Pattern:** Satır **pasif**, sadece **action button'lar** (göz, kalem) navigation
+yapar. List.razor'dan kaldırıldı.
+
+**8. SiteHubDataGrid wrapper bileşeni — tek-yerden-özellik**
+
+Tüm liste sayfaları bu wrapper'ı kullanır. Kazanımlar:
+- Yatay scroll container (kolon taşma yok)
+- Hideable column (grid-level)
+- Drag-drop column reordering (header + dialog)
+- Dense mode, hover, tema uyumu
+- Pager Türkçe (MudBlazor.Translations ile otomatik)
+
+**İlerde tek yerden eklenecek:** Server-side filter (ROADMAP #3),
+Excel/PDF export (#6), AND-search (#7).
+
+**9. MudBlazor 9.0.0 sessiz render fail (MudChip + MudBreadcrumbs)** 🔥
+
+F.6 B.4'te Detail sayfası test edilirken keşfedildi: MudChip ve MudBreadcrumbs
+bileşenleri build hatası vermeden DOM'a düşmüyor. Sayfanın diğer tüm bileşenleri
+(MudText, MudStack, MudPaper, MudButton, MudIcon, MudLink) normal render oluyor.
+B.2'de List.razor'un Durum kolonundaki MudChip'in de aslında görünmediği geç
+fark edildi (kolon küçük olduğu için göze batmamış).
+
+**Tetikleyici şüphelileri:**
+- MudChip + `Icon` parametresi (Detail'de kullandığımız hâl)
+- MudChip + `Variant.Filled` + ChildContent (List B.2'deki hâl)
+- MudBreadcrumbs + `BreadcrumbItem(..., href: null, disabled: true)` son item
+
+**Workaround (kalıcı, tema uyumlu):** `div + inline style + palette CSS variable`
+(`var(--mud-palette-success)`, `var(--mud-palette-warning)` vs.). Detail'de pill
+badge (Icon + label), List'te compact badge, breadcrumb `MudLink + MudIcon`
+kombinasyonu.
+
+**İlerde:** §13'e eklendi — MudBlazor 9.0.0 → 9.1.x+ upgrade değerlendirmesi
+(F.6 C Site UI öncesi tercih edilir). Upgrade breaking değilse native bileşene
+dönülebilir; kalırsa workaround pattern'i Site UI'da aynen uygulanır.
+
+**10. Contracts DTO konsolidasyonu** 🔥 [DECISION, F.6 Cleanup `43752d5`]
+
+F.6 A.2'de, Contracts paketi bağımsız shipping için tanıtıldığında, Application
+ve Contracts'ta **aynı DTO'ların iki kopyası** oluşmuştu (`OrganizationListItemDto`,
+`OrganizationDetailDto`, `SiteListItemDto`, `SiteDetailDto`, `PagedResult<T>`).
+JSON seviyesinde çalışıyordu çünkü alanlar aynıydı, ama tip sistem olarak
+iki ayrı tipti. Tehlike: alan eklerken birini unutmak.
+
+**Karar (F.6 Cleanup):** Contracts tek kaynak. Application DTO'ları silindi.
+Application query handler'ları `Contracts.Xxx.YyyDto` döndürür (namespace değişimi,
+LINQ projection aynen kaldı — `.Select(o => new Contracts.Dto(...))`).
+
+**PagedResult<T> değişikliği:** Application versiyonu positional record idi.
+Contracts versiyonu sealed class + required init. Ctor stili farklı → handler
+return'lerinde `new PagedResult<T> { Items = ..., Page = ..., ... }` init
+pattern'ine geçildi. JSON şeması aynı → frontend etkilenmedi.
+
+**Etkilenmeyen:** Command/Query + Result tipleri Application'da kalır (CQRS
+internal sözleşmesi, dış dünyaya DTO değil). Endpoint lokal RequestBody/Response
+record'lar da Endpoint dosyasında kalır (küçük, lokal concern).
+
+**Mapping stratejisi:** Manuel extension method'lar (`SiteMappings.ToListItemDto()`).
+AutoMapper kullanılmaz (derleme-zamanı güvenliği, AOT uyumlu, debug kolay). Şu an
+projection'larda inline `new Dto(...)` yeterli, extension'lar in-memory entity →
+DTO için ihtiyaç doğduğunda yazılır.
+
+**ADR-0017 (planlı):** F.6 sonunda "Manuel DTO Mapping Pattern" ADR'si yazılır.
+Geriye dönük olarak bu kararı belgeler.
+
+**Kazanım:** Tek tanım, manuel senkron gereksiz. Gelecek entity'ler (Unit,
+Residency, Aidat, Transaction) için aynı pattern — DTO sadece Contracts'ta.
+ResidentPortal Contracts'ı hazır (ortak shape paylaşır).
+
+## 6. Sıradaki İş — **Faz F.6 C: Site CRUD UI**
+
+**Amaç:** Organization pattern'i Site'a aynen uygula. Backend F.3'te hazır,
+MudBlazor 9.0.0 chip/breadcrumb workaround'u Organization tarafında test edildi,
+Site UI'da direkt yeniden kullanılır.
+
+### F.6 C Alt Parçaları (7-9 seans toplam tahmin)
+
+- [ ] **F.6 C.1** — Flat `/api/sites` endpoint + `OrganizationName` alanı + `ISitesApi.GetAllAsync`
+- [ ] **F.6 C.2** — (ertelendi, C sonuna) Permission altyapısı hazırlığı + seed
+- [ ] **F.6 C.3** — Site Form (Create + Edit) + IL/İlçe cascading dropdown
+- [ ] **F.6 C.4** — Site List × 2 (flat `/sites` + nested `/organizations/{id}/sites`) + menu girişi + Organization List'e "Siteler" action
+- [ ] **F.6 C.5** — Site Detail (tab yapılı) + permission-aware tab visibility
+- [ ] **F.6 C.6** — PROJECT_STATE güncelleme + ADR-0017 (Manuel Mapping) + faz kapanış
+
+### F.6 C Temel Kararlar
+
+- **İki liste sayfası:** flat `/sites` (Organization kolonu var) + nested `/organizations/{orgId}/sites` (Organization kolonu redundant, yok). Aynı SiteHubDataGrid paylaşılır.
+- **Site Detail tab yapısı:** Ana Bilgiler (default) + Bankalar&Hesaplar + Muhasebe Parametreleri + Banka Parametreleri + Genel Parametreler. İlk faz'da sadece Ana Bilgiler dolu; diğer tab'lar permission-aware placeholder (Faz H/I'da dolacak).
+- **Permission altyapısı ertelendi (C.2 sona):** Tab check'leri placeholder olarak yazılır, gerçek permission retrofit C sonunda.
+- **Cross-site rapor:** Organization context'inde ayrı kategori (Hibrit Pattern A). Site-bazlı raporlar Site context'inde, konsolide raporlar Organization context'inde.
+- **Multi-tab davranışı:** Context switching her zaman URL navigate ile (Ctrl+Click yeni sekmede başka site açma doğal çalışır). ADR-0005 uyumlu.
+
+### F.6 C Öncesi — Tercih Edilen Ön-İş
+
+- [ ] **MudBlazor 9.0.0 → 9.1.x+ upgrade** değerlendirmesi (30 dk.). Bilinen issue:
+      MudChip/MudBreadcrumbs sessiz render fail (§5 Teknik Öğrenim 9). Upgrade
+      breaking değilse native bileşenlere dönülür; kalırsa workaround pattern'i Site UI'da aynen uygulanır.
 
 ## 7. Faz F Kalan Alt Parçaları
 
@@ -209,7 +375,13 @@ Backend hazır (F.3), sadece frontend bağlama.
 - [x] **F.3** Site CRUD backend (nested REST) → `f0942c5`
 - [x] **F.4** HttpTenantContext Site→Org resolver → `4164b72` + `1e98eba`
 - [x] **F.5** `tenancy.sites` RLS policy → `d2a4443`
-- [ ] **F.6** Site CRUD UI (MudDataGrid, form) ← **BURADAYIZ**
+- [x] **F.6 A.1** Geography read endpoint'leri → `3d5417f`
+- [x] **F.6 A.2** HttpClient altyapısı → `ff81635`
+- [x] **F.6 B.2** Organization List + SiteHubDataGrid + tema + lokalizasyon → `40036b2` + `120aa71`
+- [x] **F.6 B.3** Organization Form (Create + Edit) + API CRUD → `dee59ff`
+- [x] **F.6 B.4** Organization Detail + Delete/Activate UI + List fix → `ac3e37c`
+- [x] **F.6 Cleanup** Application DTO'ları Contracts'a konsolide → `43752d5`
+- [ ] **F.6 C** Site CRUD UI (Organization pattern'i tekrar uygulama, 5 alt parça) ← **BURADAYIZ (C.1)**
 - [ ] **F.7** Backup automation (pg_dump + WAL, Hangfire)
 
 ## 8. Sıradaki Fazlar (Faz F sonrası)
@@ -317,6 +489,18 @@ Backend hazır (F.3), sadece frontend bağlama.
 
 ## 13. Bilinen Bug'lar / İşler (bekleyen)
 
+**F.6 C içinde yapılacak:**
+- [ ] Site CRUD UI (F.6 C, 5 alt parça) — buradayız, C.1'den başla
+- [ ] SiteHubDataGrid: server-side filter (ROADMAP #3), export (#6), AND-search (#7) — F.6 sonrası tek iterasyonda tüm liste sayfaları kazanır
+- [ ] VKN checksum kontrolü (ilerde Gelir İdaresi servisiyle açılacak)
+
+**Ön-iş (F.6 C öncesi tercih edilen):**
+- [ ] **MudBlazor 9.0.0 → 9.1.x+ upgrade** değerlendirmesi. Bilinen sessiz render fail (MudChip + MudBreadcrumbs) — §5 Teknik Öğrenim 9. Upgrade breaking değilse native bileşenlere dön.
+
+**F.6 sonrası yazılacak ADR'ler:**
+- [ ] **ADR-0017 Manuel DTO Mapping Pattern** (Cleanup'ta alınan karar, §5 Teknik Öğrenim 10). F.6 sonunda yazılır.
+
+**Eski kalıntılar (devam ediyor):**
 - [ ] RedisCacheStore self-heal anti-pattern (log error, don't delete) — Faz E-Pre içinde düzeltilecek
 - [ ] SMS provider gerçek implementation (şu an NullSmsSender) — Faz F içinde
 - [ ] Audit log'a kullanıcı IP + User-Agent ekleme — Faz E-Pre içinde
