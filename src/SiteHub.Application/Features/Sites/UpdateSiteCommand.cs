@@ -11,6 +11,10 @@ namespace SiteHub.Application.Features.Sites;
 /// <summary>
 /// Site temel bilgilerini günceller (ad, unvan, adres, il/ilçe, IBAN, VKN).
 /// Code alanı ve OrganizationId DEĞİŞMEZ.
+///
+/// <para><b>F.6 C.3 hotfix:</b> VKN için <c>NationalId.Parse</c> yerine
+/// <c>CreateVknRelaxed</c> + <c>InvalidNationalIdException</c> yakalama
+/// (Organization pattern'i ile tutarlı, PROJECT_STATE §5.5 Öğrenim 6).</para>
 /// </summary>
 public sealed record UpdateSiteCommand(
     Guid SiteId,
@@ -123,25 +127,18 @@ public sealed class UpdateSiteHandler
             }
         }
 
-        // 4. TaxId parse (eğer verilmişse)
+        // 4. TaxId parse (eğer verilmişse) — Relaxed (Organization ile tutarlı, §5.5 Öğrenim 6)
         NationalId? newTaxId = null;
         if (!string.IsNullOrWhiteSpace(cmd.TaxId))
         {
             try
             {
-                newTaxId = NationalId.Parse(cmd.TaxId);
-                if (newTaxId.Type != NationalIdType.VKN)
-                {
-                    return UpdateSiteResult.Failure(
-                        UpdateSiteFailureCode.InvalidTaxId,
-                        "Site vergi numarası VKN olmalıdır.");
-                }
+                newTaxId = NationalId.CreateVknRelaxed(cmd.TaxId);
             }
-            catch (Exception ex) when (ex is ArgumentException or FormatException)
+            catch (InvalidNationalIdException ex)
             {
                 return UpdateSiteResult.Failure(
-                    UpdateSiteFailureCode.InvalidTaxId,
-                    "VKN formatı geçersiz.");
+                    UpdateSiteFailureCode.InvalidTaxId, ex.Message);
             }
         }
 

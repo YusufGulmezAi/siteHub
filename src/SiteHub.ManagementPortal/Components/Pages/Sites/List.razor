@@ -9,10 +9,10 @@
       - "Flat /sites" YOK — C.1 cleanup'ta geri alındı
       - Nav menüde "Siteler" girişi YOK — yalnızca Organizasyonlar > [Org] > Siteler akışı
 
-    Bu ilk versiyon (C.4) SADECE LİSTELEME:
-      - "+ Yeni Site" butonu YOK (C.3 Site Form bitince eklenir)
-      - Satırlarda Detay/Düzenle ikonları YOK (C.5/C.3 bitince eklenir)
-      - Organization List'e uyumlu pattern (SiteHubDataGrid + arama + switch)
+    F.6 C.3 revizyonu:
+      - Alt metin kaldırıldı (sade başlık)
+      - "+ Yeni Site" butonu eklendi → /organizations/{orgId}/sites/new
+      - Satırlarda Detay/Düzenle ikonları henüz yok — C.5/C.3 Edit bitince eklenir
 *@
 @page "/organizations/{OrganizationId:guid}/sites"
 @rendermode InteractiveServer
@@ -63,28 +63,19 @@
 }
 else
 {
-    @* Başlık + alt metin (Organization adı dahil) *@
+    @* Başlık + Yeni Site butonu *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
         <div>
             <MudText Typo="Typo.h4" Style="font-weight:600">Siteler</MudText>
-            @if (_organizationName is not null)
-            {
-                <MudText Typo="Typo.body2" Style="color:#6B7280">
-                    @_organizationName — yönetilen apartman/kompleks listesi.
-                </MudText>
-            }
-            else
-            {
-                <MudText Typo="Typo.body2" Style="color:#6B7280">
-                    Yükleniyor...
-                </MudText>
-            }
         </div>
         <MudSpacer />
-        @*
-            "+ Yeni Site" butonu C.3 Site Form bitince eklenecek.
-            Plan: /organizations/{orgId}/sites/new rotası.
-        *@
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="NavigateToCreate"
+                   Disabled="_organizationName is null">
+            Yeni Site
+        </MudButton>
     </MudStack>
 
     <MudPaper Elevation="1" Class="pa-4">
@@ -117,7 +108,7 @@ else
             Kolonlar (OrganizationName YOK — zaten başlıkta ve breadcrumb'da):
               Kod | Ad | Ticari Ünvan | Adres | VKN | IBAN | Durum
 
-            "İşlemler" kolonu yok — C.3/C.5 gelince eklenir.
+            "İşlemler" kolonu yok — C.3 Edit ve C.5 Detail bitince eklenir.
         *@
         <SiteHubDataGrid T="SiteListItemDto"
                          ServerData="LoadServerData"
@@ -181,7 +172,6 @@ else
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // PROJECT_STATE §5.5 Teknik Öğrenim 1: prerender + HttpClient auth tuzağı.
-        // OnInitializedAsync yerine OnAfterRenderAsync(firstRender) kullanılır.
         if (firstRender)
         {
             await LoadOrganizationNameAsync();
@@ -211,7 +201,6 @@ else
     private async Task<GridData<SiteListItemDto>> LoadServerData(
         GridState<SiteListItemDto> state, CancellationToken ct)
     {
-        // Organization yüklenemediyse grid'i de yükleme (error state zaten gösterilmiş)
         if (_organizationLoadFailed)
         {
             return new GridData<SiteListItemDto>
@@ -267,4 +256,7 @@ else
         if (_grid is not null)
             await _grid.ReloadAsync();
     }
+
+    private void NavigateToCreate() =>
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/new");
 }

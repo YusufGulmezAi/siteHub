@@ -18,6 +18,12 @@ namespace SiteHub.Infrastructure.Persistence.Configurations;
 /// - <c>(organization_id, name)</c> — aynı org içinde Site ismi tekrarlanamaz
 ///
 /// NOT: RLS policy F.5'te ayrı migration ile eklenecek.
+///
+/// <b>F.6 C.3 hotfix2:</b> TaxId converter <c>NationalId.Parse</c>'dan
+/// <c>CreateVknRelaxed</c>'e çevrildi. Application katmanında Relaxed ile
+/// yazıyoruz (sahte VKN'ler checksum'dan geçmez) — converter Parse kullanınca
+/// okurken aynı VKN'ler patlıyor (PROJECT_STATE §5.5 Öğrenim 6 genişletildi).
+/// OrganizationConfiguration'da zaten Relaxed vardı, Site'ta eksikti.
 /// </summary>
 public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
 {
@@ -91,13 +97,21 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
             .HasMaxLength(26)
             .UseCollation(SiteHubDbContext.TurkishCsAs); // deterministik (equality/index için)
 
+        // TaxId — opsiyonel VKN, OrganizationConfiguration ile aynı pattern.
+        //
+        // DB'den okurken CreateVknRelaxed kullanılır — checksum YOK. Sebep:
+        // Application katmanında CreateVknRelaxed ile yazıyoruz (dev test
+        // kolaylığı, rastgele 10 hane kabul), dolayısıyla DB'de checksum'dan
+        // geçmeyen VKN'ler de bulunabilir. Parse/CreateVkn (checksum'lı)
+        // kullansak okurken patlar. İlerde banka entegrasyonunda Gelir
+        // İdaresi servisi açılınca bu converter de sıkılaştırılır.
         builder.Property(s => s.TaxId)
             .HasColumnName("tax_id")
             .HasMaxLength(11)
             .UseCollation(SiteHubDbContext.TurkishCsAs)
             .HasConversion(
                 id => id!.Value,
-                str => NationalId.Parse(str));
+                str => NationalId.CreateVknRelaxed(str));
         // Nullable — DB'de NULL allowed
 
         // ─── Durum ──────────────────────────────────────────────────────

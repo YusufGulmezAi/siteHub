@@ -17,6 +17,12 @@ namespace SiteHub.Application.Features.Sites;
 ///
 /// <para><b>Input:</b> <paramref name="OrganizationId"/> URL'den gelir (nested REST:
 /// <c>POST /api/organizations/{orgId}/sites</c>). Diğer alanlar body'de.</para>
+///
+/// <para><b>F.6 C.3 hotfix:</b> VKN için <c>NationalId.Parse</c> yerine
+/// <c>CreateVknRelaxed</c> kullanılır (Organization ile tutarlı, dev rahatlığı,
+/// PROJECT_STATE §5.5 Öğrenim 6). <c>InvalidNationalIdException</c> yakalanır
+/// ve proper <c>InvalidTaxId</c> failure code döndürülür (aksi halde 500 hatası
+/// → JSON yerine HTML response → UI "'S' is an invalid start of a value" hatası).</para>
 /// </summary>
 public sealed record CreateSiteCommand(
     Guid OrganizationId,
@@ -150,25 +156,20 @@ public sealed class CreateSiteHandler
             }
         }
 
-        // 5. TaxId parse (eğer verilmişse)
+        // 5. TaxId parse (eğer verilmişse) — Organization ile tutarlı Relaxed kullan.
+        //    PROJECT_STATE §5.5 Öğrenim 6: Dev ortamında checksum kapalı,
+        //    banka entegrasyonunda (Faz H+) Gelir İdaresi servisi ile açılır.
         NationalId? taxId = null;
         if (!string.IsNullOrWhiteSpace(cmd.TaxId))
         {
             try
             {
-                taxId = NationalId.Parse(cmd.TaxId);
-                if (taxId.Type != NationalIdType.VKN)
-                {
-                    return CreateSiteResult.Failure(
-                        CreateSiteFailureCode.InvalidTaxId,
-                        "Site vergi numarası VKN olmalıdır (10 hane), TCKN kabul edilmez.");
-                }
+                taxId = NationalId.CreateVknRelaxed(cmd.TaxId);
             }
-            catch (Exception ex) when (ex is ArgumentException or FormatException)
+            catch (InvalidNationalIdException ex)
             {
                 return CreateSiteResult.Failure(
-                    CreateSiteFailureCode.InvalidTaxId,
-                    "VKN formatı geçersiz.");
+                    CreateSiteFailureCode.InvalidTaxId, ex.Message);
             }
         }
 
