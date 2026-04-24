@@ -3,7 +3,7 @@
 > **Her yeni seansın başında bu dosyayı oku.** İçinde nerede kaldığımız, temel
 > kararlar ve bir sonraki adım var. Detaylar ADR'lerde.
 
-**Son güncelleme:** 2026-04-22 (F.6 A.1 → F.6 B.4 + F.6 Cleanup tamamlandı — Organization UI tam bitti, DTO tek kaynakta)
+**Son güncelleme:** 2026-04-24 (F.6 C tamamlandı + Madde 3/5/6/9 + Kategori A — Organization & Site UI tam bitti, breadcrumb + permission + 401 handler hazır)
 
 ---
 
@@ -131,19 +131,40 @@ System Admin RLS'yi bypass edebilir ama:
 | F.6 B.3 | Organization Form (Create + Edit) + API CRUD | ✅ | `dee59ff` |
 | F.6 B.4 | Organization Detail + Delete/Activate UI + List fix | ✅ | `ac3e37c` |
 | F.6 Cleanup | Application DTO'ları Contracts'a konsolide | ✅ | `43752d5` |
+| F.6 C.1 cleanup | Flat `/api/sites` geri alındı | ✅ | `941f87f` |
+| F.6 C.3 | Site Form (Create + Edit) + cascading Il/Ilce | ✅ | `e2f52b6` |
+| F.6 C.4 | Site listesi (nested, org context URL'den) | ✅ | `38f7d5a` |
+| F.6 C.2 | Permission altyapısı (context-aware, hibrit B-Cascade) | ✅ | `973dab5` |
+| F.6 C.5a | Site Detail (Tab iskeleti + Ana Bilgiler full) | ✅ | `b53da9c` |
+| F.6 M9 | Global 401 handler + session expired dialog | ✅ | `d4981eb` |
+| F.6 M3 | Site Detail = Form birleştirme (tek sayfa Create+Edit) | ✅ | `c59a22c` |
+| F.6 Kat-A | UI cilası ve menü sadeleştirme (9 madde) | ✅ | `4ba1ef0` |
+| F.6 M6 | Organization Detail = Form birleştirme | ✅ | `51e40a9` |
+| F.6 M5 | Breadcrumb standardı (shared component) | ✅ | `1849442` |
 
-**Son commit:** `43752d5` (2026-04-22)
-**Test durumu:** 146 test yeşil. Build temiz. Portal canlı çalışır durumda.
+**Son commit:** `1849442` (2026-04-24)
+**Test durumu:** Build temiz. Portal canlı çalışır durumda. Tüm smoke testler yeşil.
 
 ### F.6 Nerede Kaldı?
 
-- **Organization UI tam bitti.** List + Form + Detail + Delete/Activate + durum badge.
-- Göz ikonu Detail sayfasına, kalem Edit'e ayrı ayrı gidiyor (B.4'te düzeltildi).
-- Destructive action'lar (Sil/Pasif) sadece Detail sayfasında — kazara silme riski düşürüldü.
-- Delete reason zorunlu (min 5 karakter, `DeleteConfirmDialog` yeniden kullanılabilir).
-- `ConfirmDialog` + `DeleteConfirmDialog` generic — Site/Resident UI'da aynen çalışır.
-- **Cleanup sonrası:** Application DTO'ları silindi, Contracts tek kaynak. `PagedResult<T>` init pattern (Contracts.Common). Tüm 146 test yeşil.
-- **Site CRUD UI (F.6 C)** sıradaki iş — Organization pattern'i Site'a taşınacak.
+**F.6 C tamamlandı (2026-04-24).** Hem Organization hem Site için:
+
+- **Detail = Form birleşimi (M3 Site, M6 Org):** Ayrı Form sayfaları silindi, Detail tek sayfada hem Create (`/new`) hem Edit (`/{id}`) mod'unu yönetiyor. Tab yapısı (Site 8, Org 3). Kaydet / İptal / Sil butonları tab altında, Sil solda kırmızı edit-only.
+- **Permission altyapısı (C.2):** Hibrit B-Cascade — Organization → Site permission expansion login'de yapılır, cache'lenir. Her context için ayrı `PermissionSet`. `HasPermission` component'i UI'da permission-gated render yapar.
+- **Global 401 handler (M9):** Singleton event service + session identifier filter. Cookie değeri ile circuit'leri izole eder, A kullanıcısının 401'i B'ye gitmez. 5 saniye countdown + `/auth/login` redirect.
+- **Breadcrumb standardı (M5):** `SiteHubBreadcrumb` shared component. Subtitle1 font + 1px divider alt çizgi. Array parameter API.
+- **UI cilası (Kat-A, 9 madde):** Başlık "Yönetim Firmaları", Aktif badge koyu yeşil, menü sadeleştirme, Aktif/Pasif switch DataGrid toolbar'ında.
+- **DeleteConfirmDialog pattern:** Site "Siteyi Sil", Org "Yönetim Firmasını Sil" başlıkları. Reason zorunlu (min 5 karakter).
+
+**F.6 kalan maddeler (sonraki seanslar):**
+
+| Madde | İş | Boyut | Öncelik |
+|---|---|---|---|
+| M8 | Genel audit log sistemi (tüm Detail'lerde kullanılacak shared component + backend endpoint) | Büyük | Yüksek |
+| M11 | Organization domain genişletme (Sözleşme tarihi, Hizmet başlama/bitiş, Ek süre 0-30 gün, Token süresi config) | Büyük | Orta |
+| M9-URL | URL'de Feistel Code (GUID yerine, Org + Site + sonraki entity'ler) | Büyük | Orta |
+| — | Pasife Çek / Aktife Al toggle butonu (Detail sayfalarında) | Küçük | Düşük |
+| F.6 Kapanış | ADR-0011'e Hibrit B-Cascade ekle, ADR-0017 Manuel Mapping, duplicate TurkishNormalizer temizliği | Orta | Kapanış |
 
 ### E-Pre G2-A3 (Integration Tests) — Neden Silindi?
 
@@ -339,34 +360,142 @@ Geriye dönük olarak bu kararı belgeler.
 Residency, Aidat, Transaction) için aynı pattern — DTO sadece Contracts'ta.
 ResidentPortal Contracts'ı hazır (ortak shape paylaşır).
 
-## 6. Sıradaki İş — **Faz F.6 C: Site CRUD UI**
+**11. PermissionSet JSON roundtrip — sealed class + Dictionary** [DECISION, F.6 C.2 `973dab5`]
 
-**Amaç:** Organization pattern'i Site'a aynen uygula. Backend F.3'te hazır,
-MudBlazor 9.0.0 chip/breadcrumb workaround'u Organization tarafında test edildi,
-Site UI'da direkt yeniden kullanılır.
+Başlangıçta `PermissionSet` positional record olarak tanımlıydı, `Dictionary<string, HashSet<string>>` alanı vardı. Redis'te JSON'a serialize edilip deserialize edildiğinde `HashSet` tipini kaybediyordu (System.Text.Json varsayılan davranışı). Deserialize sonrası `HashSet` değil `List` olarak gelip null-ref patlıyordu.
 
-### F.6 C Alt Parçaları (7-9 seans toplam tahmin)
+**Çözüm:** `PermissionSet` **sealed class + init setter + Dictionary<string, HashSet<string>>** oldu (record yerine). `Has(scope, key)` metodu ile permission check yapılır. JSON deserialize doğru şekilde `HashSet` rebuild eder.
 
-- [ ] **F.6 C.1** — Flat `/api/sites` endpoint + `OrganizationName` alanı + `ISitesApi.GetAllAsync`
-- [ ] **F.6 C.2** — (ertelendi, C sonuna) Permission altyapısı hazırlığı + seed
-- [ ] **F.6 C.3** — Site Form (Create + Edit) + IL/İlçe cascading dropdown
-- [ ] **F.6 C.4** — Site List × 2 (flat `/sites` + nested `/organizations/{id}/sites`) + menu girişi + Organization List'e "Siteler" action
-- [ ] **F.6 C.5** — Site Detail (tab yapılı) + permission-aware tab visibility
-- [ ] **F.6 C.6** — PROJECT_STATE güncelleme + ADR-0017 (Manuel Mapping) + faz kapanış
+**Pattern olarak öğrendik:** Redis/JSON roundtrip yapan collection'lar için positional record + complex generic args (HashSet, ConcurrentDictionary vb.) **güvenilmez**. Sealed class + init setter daha deterministik.
 
-### F.6 C Temel Kararlar
+**12. Blazor Server cross-scope event — Singleton + filter pattern** [DECISION, F.6 M9 `d4981eb`]
 
-- **İki liste sayfası:** flat `/sites` (Organization kolonu var) + nested `/organizations/{orgId}/sites` (Organization kolonu redundant, yok). Aynı SiteHubDataGrid paylaşılır.
-- **Site Detail tab yapısı:** Ana Bilgiler (default) + Bankalar&Hesaplar + Muhasebe Parametreleri + Banka Parametreleri + Genel Parametreler. İlk faz'da sadece Ana Bilgiler dolu; diğer tab'lar permission-aware placeholder (Faz H/I'da dolacak).
-- **Permission altyapısı ertelendi (C.2 sona):** Tab check'leri placeholder olarak yazılır, gerçek permission retrofit C sonunda.
-- **Cross-site rapor:** Organization context'inde ayrı kategori (Hibrit Pattern A). Site-bazlı raporlar Site context'inde, konsolide raporlar Organization context'inde.
-- **Multi-tab davranışı:** Context switching her zaman URL navigate ile (Ctrl+Click yeni sekmede başka site açma doğal çalışır). ADR-0005 uyumlu.
+İlk denemede `IAuthenticationEventService` **Scoped** idi. HttpClient handler 401 yakalayınca event raise etti, ama MainLayout event'i hiç almadı — dialog açılmadı.
 
-### F.6 C Öncesi — Tercih Edilen Ön-İş
+**Sebep:** Blazor Server'da HttpClient handler scope'u ile SignalR circuit scope'u **aynı DI scope değil**. Handler'ın aldığı event service instance'ı ile layout'unki farklıydı.
 
-- [ ] **MudBlazor 9.0.0 → 9.1.x+ upgrade** değerlendirmesi (30 dk.). Bilinen issue:
-      MudChip/MudBreadcrumbs sessiz render fail (§5 Teknik Öğrenim 9). Upgrade
-      breaking değilse native bileşenlere dönülür; kalırsa workaround pattern'i Site UI'da aynen uygulanır.
+**Çözüm:** Event service **Singleton** oldu. Multi-user broadcast problemini çözmek için event'e `SessionIdentifier` (auth cookie değeri) eklendi. MainLayout `OnInitialized`'de `IHttpContextAccessor` ile kendi cookie değerini cache'ler, event geldiğinde filter: `if (e.SessionIdentifier != _mySessionIdentifier) return;`. `ConcurrentDictionary<string, DateTime>` ile session bazlı tek-tetikleme + 30 dk cleanup timer.
+
+**Pattern olarak öğrendik:** Blazor Server'da HttpClient handler → UI bildirim için **mutlaka Singleton event service + session/circuit identifier ile filter**. Scoped değil.
+
+**13. SiteHubDataGrid wrapper parameter adı: `OnRowClick` (RowClick değil)**
+
+MudDataGrid native parameter adı `RowClick` (EventCallback). Ama SiteHubDataGrid wrapper'ında `OnRowClick` (EventCallback<T>) olarak expose edildi — direkt `T item` geçer, `DataGridRowClickEventArgs` değil.
+
+```razor
+<!-- DOĞRU -->
+<SiteHubDataGrid OnRowClick="OnRowClick" ...>
+private void OnRowClick(SiteListItemDto item) { ... }
+
+<!-- YANLIŞ -->
+<SiteHubDataGrid RowClick="OnRowClick" ...>
+private void OnRowClick(DataGridRowClickEventArgs<SiteListItemDto> args) { ... }
+```
+
+Yanlış yazılırsa compile geçer ama **runtime'da exception**, tüm sayfa donuyor. SiteHubDataGrid kullanırken her zaman `OnRowClick` ve item parametresi.
+
+**14. MudDataGrid child content `@if` bloğu içinde olamaz**
+
+`<ToolBarContent>` gibi slot'ları koşullu render etmek için `@if (X) { <ToolBarContent>...</ToolBarContent> }` **compile hatası** verir (RZ9996). Razor compiler top-level item'ları tanıyamıyor.
+
+**Çözüm:** Slot her zaman render edilsin, içeriği koşullu olsun:
+
+```razor
+<ToolBarContent>
+    @if (X) { <span>İçerik</span> }
+    @ToolBarContent <!-- RenderFragment parameter -->
+</ToolBarContent>
+```
+
+**15. MudIconButton `@onclick:stopPropagation` + `OnClick` duplicate hatası**
+
+Blazor'da `@onclick:stopPropagation="true"` direktifi generated `OnClick` parametresi ekliyor. MudIconButton'un kendi `OnClick` parametresiyle çakışıp compile hatası veriyor ("OnClick used two or more times").
+
+**Çözüm:** MudIconButton'u `<span @onclick:stopPropagation="true">...</span>` ile sar. stopPropagation span'de kalır, button normal OnClick kullanır.
+
+**Kullanım yeri:** DataGrid row click + row içindeki button click ayrımı (bir sütunda button varsa, button'a tıklamada satır navigation'ı tetiklenmesin diye).
+
+**16. MudBlazor `ToolBarContent` slot — DataGrid dişlisi otomatik sağa**
+
+MudDataGrid'in `<ToolBarContent>` slot'una content koyarsan, `ShowMenuIcon="true"` ile dişli ikonu **otomatik olarak toolbar'ın sağ ucuna** konur. Sen content'i soldan yaz, MudSpacer ile aradaki boşluğu doldur — dişli zaten sağda.
+
+```razor
+<ToolBarContent>
+    <MudSwitch Label="Aktif" ... />
+    <MudSpacer />
+    <!-- Dişli burada otomatik görünür -->
+</ToolBarContent>
+```
+
+F.6 Kat-A Madde A-b'de Organizations ve Sites list'leri bu pattern'e geçti (switch + dişli aynı satırda).
+
+**17. PowerShell 5 `Set-Content -Encoding utf8NoBOM` yok**
+
+PowerShell 5.1 (Windows default) `utf8NoBOM` encoding'i desteklemez, sadece `UTF8` (BOM ile). BOM git tarafından tolere edilir ama başlarda commit mesajlarında görülebilir. Pratik: `Set-Content -Encoding UTF8 ...` kullan, commit message dosyaları için BOM sorun değil.
+
+**18. Set-Content heredoc vs array — Türkçe karakter güvenilirliği**
+
+`Set-Content -Value @(...)` array formu heredoc (`@'...'@`)'dan daha güvenilir — Türkçe karakterler (İ, Ş, Ğ, Ü, Ö, Ç) korunuyor. Özellikle commit mesajları için `Set-Content -Value @("satır 1", "satır 2", ...)` tercih edilir.
+
+**19. Yapıştırma sırasında `<` kaybolabiliyor — her generic syntax sonrasında doğrula**
+
+Uzun komutları yapıştırırken PowerShell bazen `<` karakterini yutuyor. C# generic syntax (`List<T>`, `AddScoped<IService, TImpl>()`) etkilenir. Her yapıştırmadan sonra `Get-Content | Select-String` ile hızlı kontrol: `<` karakterleri yerinde mi?
+
+**20. `dotnet run` profile bağımlılığı — ASPNETCORE_ENVIRONMENT env var gerekli**
+
+`dotnet run --project ...` komutu `launchSettings.json`'u otomatik okumayabilir (Visual Studio VEYA `dotnet watch run` ise okur). Sonuç: `appsettings.Development.json` yüklenmez, connection string null, portal "ConnectionString has not been initialized" ile patlar.
+
+**Çözüm:** `$env:ASPNETCORE_ENVIRONMENT = "Development"` session'a set et, veya kalıcı: `[Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development", "User")`.
+
+## 6. Sıradaki İş — **F.6 Kalan Maddeler**
+
+F.6 C (Site CRUD UI) tamamlandı. Kullanıcı gözden geçirmesiyle 12 madde açıldı; yarısı bitti, 4 büyük iş bekliyor.
+
+### F.6 Kalan (bekleyen maddeler)
+
+- [ ] **Madde 8 — Genel Audit Log Sistemi** (Büyük, öncelikli)
+  - Backend: `GET /api/audit?entityType={x}&entityId={id}&page={n}&pageSize=10`
+  - Contracts: `AuditLogEntryDto(Timestamp, UserName, IpAddress, UserAgent, ChangesJson)`
+  - Frontend: `<EntityAuditLogTable EntityType="..." EntityId="..." />` shared component
+  - Org + Site Detail sayfalarında Sistem Bilgileri kartının yerine gelecek
+  - Pagination (10 kayıt/sayfa), Z-A sıralama
+  - Tablo: Tarih / Kullanıcı / IP / Browser / Değişen Alanlar (eski → yeni)
+  - **DB tarafı:** `audit.entity_changes` tablosu zaten dolu, sadece read endpoint gerekli
+
+- [ ] **Madde 11 — Organization Domain Genişletme** (Büyük)
+  - Yeni alanlar: Sözleşme tarihi (Tarih), Hizmet başlama tarihi (Tarih), Hizmet bitiş tarihi (Tarih), Ek süre (0-30 gün, int)
+  - Validation kuralları:
+    - Sözleşme tarihi ≤ Hizmet başlama tarihi
+    - Hizmet başlama tarihi ≤ Hizmet bitiş tarihi
+    - Ek süre 0-30 arası
+  - Organization Detail'in "Sözleşme & Hizmet" tab'ında form
+  - Alt madde: **Token süresi parametrik** — config ayarları modülü (gelecek ADR)
+  - Domain + migration + form UI + validator
+
+- [ ] **Madde 9 — URL Feistel Code** (Büyük, mimari)
+  - GUID yerine `Code` (Feistel encoded) URL'lerde: `/organizations/142857631/sites/271828183`
+  - Tüm nav etkilenir: breadcrumb link'leri, `Nav.NavigateTo` çağrıları, satır tıklamaları
+  - API endpoint değişikliği: `GET /api/organizations/{code}` veya alternatif endpoint
+  - ISitesApi / IOrganizationsApi metod imzaları etkilenebilir
+  - 404 senaryoları (geçersiz code)
+
+- [ ] **Pasife Çek / Aktife Al** toggle butonu (Küçük)
+  - Detail sayfalarında Sil'den ayrı bir aksiyon
+  - Soft delete değil, `IsActive` flag
+  - Backend `ActivateAsync` / `DeactivateAsync` metodları zaten var
+
+### F.6 Kapanış Maddeleri
+
+- [ ] **ADR-0011 güncelleme:** Hibrit B-Cascade kararı eklenecek (permission expansion login'de yapılır)
+- [ ] **ADR-0017 (yeni):** Manuel DTO Mapping Pattern (F.6 Cleanup sonrası karar)
+- [ ] **Duplicate TurkishNormalizer temizliği** — domain + application'da iki kopya var mı kontrol
+- [ ] **PROJECT_STATE güncellemesi** (bu seansta yapılıyor)
+
+### F.7 ve Sonrası
+
+- [ ] F.7 Backup automation (pg_dump + WAL, Hangfire)
+- [ ] G — Unit + Residency + Person hassas bilgi (column encryption)
+- [ ] H — Aidat tahakkuk + tahsilat
 
 ## 7. Faz F Kalan Alt Parçaları
 
@@ -381,7 +510,8 @@ Site UI'da direkt yeniden kullanılır.
 - [x] **F.6 B.3** Organization Form (Create + Edit) + API CRUD → `dee59ff`
 - [x] **F.6 B.4** Organization Detail + Delete/Activate UI + List fix → `ac3e37c`
 - [x] **F.6 Cleanup** Application DTO'ları Contracts'a konsolide → `43752d5`
-- [ ] **F.6 C** Site CRUD UI (Organization pattern'i tekrar uygulama, 5 alt parça) ← **BURADAYIZ (C.1)**
+- [x] **F.6 C** Site CRUD UI — C.2 Permission, C.3 Form, C.4 List, C.5a Detail, M3 birleşim, Kat-A UI cilası, M5 Breadcrumb, M6 Org Detail=Form, M9 401 handler → `941f87f...1849442`
+- [ ] **F.6 Kalan:** M8 (audit log), M11 (Org domain), M9-URL (Feistel), Pasife çek, F.6 Kapanış ADR'ler
 - [ ] **F.7** Backup automation (pg_dump + WAL, Hangfire)
 
 ## 8. Sıradaki Fazlar (Faz F sonrası)
@@ -489,23 +619,30 @@ Site UI'da direkt yeniden kullanılır.
 
 ## 13. Bilinen Bug'lar / İşler (bekleyen)
 
-**F.6 C içinde yapılacak:**
-- [ ] Site CRUD UI (F.6 C, 5 alt parça) — buradayız, C.1'den başla
-- [ ] SiteHubDataGrid: server-side filter (ROADMAP #3), export (#6), AND-search (#7) — F.6 sonrası tek iterasyonda tüm liste sayfaları kazanır
-- [ ] VKN checksum kontrolü (ilerde Gelir İdaresi servisiyle açılacak)
+**F.6 Kalan (sonraki seanslar):**
+- [ ] **Madde 8 — Genel audit log sistemi** (öncelikli). Shared component + backend endpoint, Org + Site Detail'lerinde Sistem Bilgileri'nin yerine gelecek.
+- [ ] **Madde 11 — Organization domain genişletme.** Sözleşme + Hizmet tarihleri + Ek süre + Token config.
+- [ ] **Madde 9 — URL Feistel Code.** GUID yerine Code (tüm nav etkilenir).
+- [ ] **Pasife Çek / Aktife Al** toggle Detail sayfalarında.
+- [ ] SiteHubDataGrid: server-side filter (ROADMAP #3), export (#6), AND-search (#7) — F.6 sonrası tek iterasyonda.
+- [ ] VKN checksum kontrolü (ilerde Gelir İdaresi servisiyle).
 
-**Ön-iş (F.6 C öncesi tercih edilen):**
-- [ ] **MudBlazor 9.0.0 → 9.1.x+ upgrade** değerlendirmesi. Bilinen sessiz render fail (MudChip + MudBreadcrumbs) — §5 Teknik Öğrenim 9. Upgrade breaking değilse native bileşenlere dön.
+**F.6 kapanış ADR'leri:**
+- [ ] **ADR-0011 güncelleme:** Hibrit B-Cascade kararı (permission expansion login'de).
+- [ ] **ADR-0017 Manuel DTO Mapping Pattern** (Cleanup'ta alınan karar, §5 Teknik Öğrenim 10).
 
-**F.6 sonrası yazılacak ADR'ler:**
-- [ ] **ADR-0017 Manuel DTO Mapping Pattern** (Cleanup'ta alınan karar, §5 Teknik Öğrenim 10). F.6 sonunda yazılır.
+**Ön-iş (ertelendi, bloke değil):**
+- [ ] **MudBlazor 9.0.0 → 9.1.x+ upgrade** değerlendirmesi. F.6 C boyunca workaround çalıştı, acil değil. Faz G öncesi bakılsın.
 
 **Eski kalıntılar (devam ediyor):**
 - [ ] RedisCacheStore self-heal anti-pattern (log error, don't delete) — Faz E-Pre içinde düzeltilecek
 - [ ] SMS provider gerçek implementation (şu an NullSmsSender) — Faz F içinde
-- [ ] Audit log'a kullanıcı IP + User-Agent ekleme — Faz E-Pre içinde
+- [ ] Audit log'a kullanıcı IP + User-Agent ekleme — M8 kapsamında gelecek
 - [ ] System Admin için zorunlu 2FA — Faz E-Pre içinde
-- [ ] Backup automation (pg_dump + WAL archive) — Faz F öncesi MUTLAKA
+- [ ] Backup automation (pg_dump + WAL archive) — Faz F.7
+
+**Temizlik:**
+- [ ] Duplicate TurkishNormalizer kontrolü (Domain + Application iki kopya var mı?)
 
 ## 14. Hafıza Yönetimi Notu
 
@@ -516,3 +653,150 @@ bu dosyadan + ADR'lerden okunarak öğrenilir. Kullanıcı:
 3. Kod yorumları içinde ADR referansları var: `// ADR-0005: circuit-scoped`
 
 Bu sistemi sürdürmek **hayati**.
+
+## 15. Kritik Alan Adları ve Gotcha'lar (Claude için Cheat Sheet)
+
+Bu bölüm Claude'un hafızasız başlarken **yanlış tahmin yapmaması** için. Çoğu
+benzer ama sürekli unutulan detaylar. Yeni hata keşfedildikçe buraya eklenir.
+
+### Contract Response Alan Adları
+
+| Tip | Alan | Tip | Notu |
+|---|---|---|---|
+| `CreateOrganizationResponse` | `OrganizationId` | `Guid?` | ❌ `Id` değil |
+| `CreateOrganizationResponse` | `Code` | `long?` | — |
+| `CreateOrganizationResponse` | `FailureCode` | `string?` | — |
+| `CreateSiteResponse` | `SiteId` | `Guid?` | ❌ `Id` değil |
+| `CreateSiteResponse` | `Code` | `long?` | — |
+| `OrganizationStatusResponse` | `Success` / `Code` / `Message` | — | `Id` yok |
+| `SiteStatusResponse` | `Success` / `Code` / `Message` | — | `Id` yok |
+
+**Redirect sonrası:** `Nav.NavigateTo($"/organizations/{result.OrganizationId}")` — SiteId veya OrganizationId, **asla `result.Id` değil**.
+
+### Cookie Adları (CookieSchemes)
+
+- `ManagementCookieName` = `.SiteHub.Mgmt`
+- `ResidentCookieName` = `.SiteHub.Resident` (olması bekleniyor, yeri gelince kontrol)
+- `DeviceIdCookieName` = (bkz. `CookieSchemes.cs`)
+
+### SiteHubDataGrid Wrapper Parametreleri
+
+- `T` — item tipi
+- `ServerData` — `Func<GridState<T>, CancellationToken, Task<GridData<T>>>`
+- `OnRowClick` — **`EventCallback<T>`** (❌ `RowClick` değil, ❌ `DataGridRowClickEventArgs` imza ALMA)
+- `ToolBarContent` — `RenderFragment?` (opsiyonel, dişli otomatik sağa)
+- `NoRecordsContent` — `RenderFragment?`
+- `Filterable` — `bool` (default false)
+- `PageSizeOptions` — `int[]` default `{10, 20, 50, 100}`
+- `ReloadAsync()` — public metod, `_grid?.ReloadAsync()` ile çağrılır
+
+### SiteHubBreadcrumb Kullanım
+
+```razor
+@using SiteHub.ManagementPortal.Components.Shared
+<SiteHubBreadcrumb Items="@_breadcrumbItems" />
+
+private SiteHubBreadcrumb.BreadcrumbItem[] _breadcrumbItems =>
+    new[]
+    {
+        new SiteHubBreadcrumb.BreadcrumbItem("Yönetim Firmaları", "/organizations"),
+        new SiteHubBreadcrumb.BreadcrumbItem("...", null)  // son item
+    };
+```
+
+### Permission Service — HasPermission Component
+
+```razor
+<HasPermission Required="@Permissions.Organization.Create"
+               ContextType="MembershipContextType.System">
+    <!-- permission varsa render -->
+</HasPermission>
+
+<HasPermission Required="@Permissions.Site.Read"
+               ContextType="MembershipContextType.Organization"
+               ContextId="@orgId">
+    <!-- org-scoped permission -->
+</HasPermission>
+```
+
+- **System scope:** organization sahibi olmayan — tüm organization'larda geçerli
+- **Organization scope:** `ContextId="@orgId"` zorunlu
+- **Site scope:** `ContextId="@siteId"` zorunlu, org'un sitelerine cascade olur
+
+### IAuthenticationEventService
+
+- **Singleton** (Scoped değil — Blazor Server cross-scope sorunu)
+- Event imzası: `Func<SessionExpiredEventArgs, Task>`
+- `RaiseSessionExpiredAsync(string sessionIdentifier)` — filter için cookie değeri
+- MainLayout her circuit kendi cookie değerini cache'ler, event'te eşleştirir
+
+### Dialog Çağırma Pattern (Çok Kullanılan)
+
+```csharp
+// Generic confirm
+var parameters = new DialogParameters<ConfirmDialog>
+{
+    { x => x.Message, "..." },
+    { x => x.ConfirmText, "Evet" },
+    { x => x.CancelText, "Hayır" },
+    { x => x.ConfirmColor, Color.Warning },
+    { x => x.ConfirmIcon, Icons.Material.Filled.Cancel }
+};
+
+// Delete with reason
+var parameters = new DialogParameters<DeleteConfirmDialog>
+{
+    { x => x.Message, "\"X\" kaydını silmek istediğinize emin misiniz?" },
+    { x => x.MinLength, 5 }
+};
+
+// Standart dialog options
+var options = new DialogOptions
+{
+    CloseButton = true,
+    MaxWidth = MaxWidth.Small,
+    FullWidth = true,
+    BackdropClick = false
+};
+
+// Delete dialog başlık örnekleri (F.6'dan):
+// - Site: "Siteyi Sil"
+// - Organization: "Yönetim Firmasını Sil" (❌ "Firmayı Sil" değil, ❌ "Organizasyonu Sil" değil)
+```
+
+### MudBlazor 9.0.0 Bilinen Workaround'lar
+
+- **MudChip → div + inline style** (sessiz render fail)
+- **MudBreadcrumbs → SiteHubBreadcrumb shared component** (sessiz render fail)
+- **MudDataGrid child content `@if` içinde olamaz** → slot her zaman render, içerik koşullu
+- **MudIconButton `Title` yok → lowercase `title`** (HTML native attribute)
+- **MudTabs `PanelClass` yok → her panel'e `Class="pa-4"`**
+
+### Blazor Server Tuzakları
+
+- **Prerender + HttpClient:** `OnInitializedAsync` yerine `OnAfterRenderAsync(firstRender)` (auth cookie prerender'da taşınmıyor)
+- **DelegatingHandler + Scoped service:** Çalışmaz — Singleton + filter pattern kullan
+- **Row click + button click:** `<span @onclick:stopPropagation="true"><MudIconButton ...></span>`
+- **Same-component nav re-init:** `OnParametersSetAsync` içinde route param değiştiyse reload
+
+### PowerShell 5.1 Tuzakları
+
+- `Set-Content -Encoding utf8NoBOM` **yok** — `UTF8` kullan (BOM git'te tolere edilir)
+- Heredoc (`@'...'@`) Türkçe karakterde kararsız — `@("satır1", "satır2")` array formu tercih
+- Yapıştırma sırasında `<` kaybolabilir — C# generic syntax sonrası doğrula (`<T>`, `AddScoped<X, Y>()`)
+- `dotnet run` profile okumayabilir — `$env:ASPNETCORE_ENVIRONMENT = "Development"` set et
+
+### Commit Disiplini (Tekrarlama Güvenliği)
+
+Sıra:
+1. `git status` → değişen/yeni dosyaları gör
+2. `git add <paths>` → stage
+3. `Set-Content commit-msg.txt -Encoding UTF8 -Value @(...)` → mesaj hazırla
+4. `git commit -F commit-msg.txt` → **commit hash'i gör**, tag atmadan önce doğrula
+5. `Remove-Item commit-msg.txt`
+6. `git push`
+7. `git tag f6-mX-done` (tag konvansiyonu: `faz-madde-durum`)
+8. `git push origin <tag>`
+9. `git log --oneline -5` → doğrula
+
+Tag atmadan önce **her zaman** commit hash kontrolü — eski commit'e tag yapışmasın.
