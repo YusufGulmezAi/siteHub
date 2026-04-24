@@ -454,13 +454,47 @@ F.6 C (Site CRUD UI) tamamlandı. Kullanıcı gözden geçirmesiyle 12 madde aç
 ### F.6 Kalan (bekleyen maddeler)
 
 - [ ] **Madde 8 — Genel Audit Log Sistemi** (Büyük, öncelikli)
-  - Backend: `GET /api/audit?entityType={x}&entityId={id}&page={n}&pageSize=10`
-  - Contracts: `AuditLogEntryDto(Timestamp, UserName, IpAddress, UserAgent, ChangesJson)`
-  - Frontend: `<EntityAuditLogTable EntityType="..." EntityId="..." />` shared component
-  - Org + Site Detail sayfalarında Sistem Bilgileri kartının yerine gelecek
-  - Pagination (10 kayıt/sayfa), Z-A sıralama
-  - Tablo: Tarih / Kullanıcı / IP / Browser / Değişen Alanlar (eski → yeni)
-  - **DB tarafı:** `audit.entity_changes` tablosu zaten dolu, sadece read endpoint gerekli
+  - **Kullanıcı kararı (2026-04-24):** Sistem Bilgileri kartı tamamen kaldırılsın, yerine audit tablosu gelsin. Toggle icon pattern (sarı = gizli, koyu kırmızı = görünür). Büyük iter seans (backend + frontend tek commit).
+  - **Audit kullanıcı bilgisi kararı:** Snapshot (Yaklaşım B) — `user_id` GUID + `user_name` + **`user_email`** (yeni kolon). `user_name` = `persons.full_name`, `user_email` = `login_accounts.email`. UI'da "Kullanıcı" kolonu iki satırlı: üst isim, alt gri email.
+  - **Bulunan bug (YENİ SEANSTA İLK İŞ):** Mevcut audit kayıtlarında `user_id` ve `user_name` **NULL geliyor** (canlı DB kontrol edildi, admin login-sonrası bile). `ICurrentUserService` audit interceptor'ına null dönüyor. Muhtemelen session context'ten user okuma sorunu. Düzeltilmeden M8 anlamsız — audit'in kimlik değeri yok.
+  - **Keşfedilen dosyalar:**
+    - `src/SiteHub.Domain/Audit/AuditEntry.cs` — entity (sealed class, AuditOperation enum: Insert=1, Update=2, Delete=3 soft, Restore=4, HardDelete=5)
+    - `src/SiteHub.Infrastructure/Persistence/Interceptors/AuditSaveChangesInterceptor.cs` — SaveChanges interceptor, `ICurrentUserService` + `ICurrentConnectionInfo` kullanır, EntityType = `entry.Entity.GetType().Name` (namespace'siz kısa ad — "Organization", "Site", "LoginAccount")
+    - `src/SiteHub.Infrastructure/Persistence/Configurations/AuditEntryConfiguration.cs` — EF Core mapping, ToTable "audit.entity_changes"
+  - **Mevcut şema (migration öncesi):** `id, timestamp, entity_type, entity_id, operation, user_id, user_name, ip_address, user_agent, correlation_id, context_type, context_id, changes(jsonb)`. Index'ler: PK + timestamp + (entity_type, entity_id) + user_id + correlation_id — performans yeterli.
+  - **ChangesJson format (interceptor'dan):**
+    - Insert: `{ "__snapshot_after": { field1, field2, ... } }`
+    - Update: `{ "fieldName": { "old": ..., "new": ... }, ... }` (camelCase field names)
+    - Delete (soft): `{ "__snapshot_before": {...}, "reason": "..." }`
+    - Restore: `{ "deletedAt_was": "..." }`
+    - HardDelete: `{ "__snapshot_before": {...} }`
+    - Hassas alanlar MASKELENMİŞ (password, token, TCKN partial)
+  - **Planlanan mimari:**
+    1. **Bug fix:** `ICurrentUserService` audit'e doğru user dolduracak şekilde düzelt
+    2. **Migration:** `audit.entity_changes` tablosuna `user_email varchar(300)` ekle
+    3. **Domain:** `AuditEntry` class'a `UserEmail` property ekle + ctor
+    4. **Config:** `AuditEntryConfiguration` güncelle (yeni kolon mapping)
+    5. **Interceptor:** Her audit kaydına `user_email` doldur (ICurrentUserService'ten)
+    6. **Contract:** `namespace SiteHub.Contracts.Audit; public sealed record AuditLogEntryDto(Guid Id, DateTimeOffset Timestamp, Guid? UserId, string? UserName, string? UserEmail, string? IpAddress, string? UserAgent, int Operation, string EntityType, Guid EntityId, string? ChangesJson);`
+    7. **Application:** `Features/Audit/GetAuditHistory/` slice + handler
+    8. **API endpoint:** `GET /api/audit?entityType={x}&entityId={id}&page={n}&pageSize=10` (auth required, pagination, timestamp DESC)
+    9. **Portal API client:** `IAuditApi.GetHistoryAsync(entityType, entityId, page, pageSize, ct)` + DI
+    10. **Shared component:** `Components/Shared/EntityAuditLogTable.razor`
+        - Parameters: `string EntityType`, `Guid EntityId`
+        - Sayfa altında info icon toggle (Size.Small, sarı bg görünmezken, koyu kırmızı bg görünürken)
+        - Tıklanınca alt panel açılır (MudCollapse)
+        - MudDataGrid 10 kayıt/sayfa, timestamp DESC
+        - Kolonlar: Tarih / Kullanıcı (2 satır: isim + email) / IP / Browser / Değişen Alanlar
+        - "Değişen Alanlar" kolonu için ChangesJson parse → expandable (tıklayınca alan-alan old → new tablosu)
+        - Insert/Delete için snapshot özet gösterim
+    11. **Entegrasyon:**
+        - `Organizations/Detail.razor` — Sistem Bilgileri kartı **kaldır**, altına `<EntityAuditLogTable EntityType="Organization" EntityId="@OrganizationId.Value" />`
+        - `Sites/Detail.razor` — aynı şekilde `EntityType="Site"`
+  - **Açık sorular (yeni seansta çöz):**
+    - `ICurrentUserService` tam olarak nerede, neden NULL dönüyor? Blazor prerender + interceptor timing sorunu olabilir (M9'dakine benzer bir tuzak?)
+    - Permission kontrolü ilk iterasyonda gevşek mi (auth yeterli mi) yoksa entity'ye göre mi?
+    - ChangesJson'daki `__snapshot_before` / `__snapshot_after` UI'da nasıl okunur? İlk sürümde raw JSON göster, ileride formatla?
+    - EntityType literal "Organization"/"Site" frontend'de nasıl gösterilir (Türkçe'ye map: "Yönetim Firması" / "Site")?
 
 - [ ] **Madde 11 — Organization + Site Domain Genişletme** (Büyük)
   - **Organization** ve **Site** için AYNI alanlar eklenecek (kullanıcı kararı 2026-04-24):
