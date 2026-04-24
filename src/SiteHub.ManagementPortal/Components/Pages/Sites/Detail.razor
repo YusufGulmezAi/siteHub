@@ -1,65 +1,69 @@
 @*
-    Sites/Detail.razor — Site detay sayfası (F.6 C.5a + 1. revizyon).
+    Sites/Detail.razor — Site Detail + Create + Edit tek sayfa (F.6 Madde 3).
 
-    Route: /organizations/{OrganizationId}/sites/{SiteId}
+    Routes:
+      /organizations/{OrganizationId}/sites/new               → Create mode
+      /organizations/{OrganizationId}/sites/{SiteId}          → Edit mode
 
-    Tablar (F.6 C.5a):
-      1. Ana Bilgiler — FULL (Site + Adres/Finans kartları + Sistem Bilgileri toggle)
-      2. Banka & Hesaplar — placeholder (C.5b+)
-      3. Muhasebe — placeholder
-      4. Finans — placeholder
-      5. İK — placeholder
-      6. Belgeler — placeholder
-      7. Yapı Şeması — placeholder (yeni, C.5a rev 1)
-      8. Abonelikler — placeholder (yeni, C.5a rev 1)
+    Akış:
+      Create mode: Sadece Ana Bilgiler tab'ı görünür (7 tab gizli).
+                   Kaydedince redirect → /organizations/{orgId}/sites/{yeniId} (Edit mode).
+      Edit mode: 8 tab görünür. Ana Bilgiler editable + Kaydet/İptal/Sil butonları altta.
+                 5 placeholder tab + Yapı Şeması + Abonelikler.
 
-    1. revizyon değişiklikleri:
-      - MaxWidth=False → içerik tüm body'yi kaplar (madde 1)
-      - 2 yeni placeholder tab: Yapı Şeması, Abonelikler (madde 2)
-      - H5 site başlığı kaldırıldı, breadcrumb son segment site adı gösteriyor (madde 5)
-      - Sistem Bilgileri → info ikonlu toggle, default kapalı (madde 6)
-      - "Listeye Dön" butonu kaldırıldı (madde 7)
+    Sil: DeleteConfirmDialog ile reason al → SitesApi.DeleteAsync → List'e redirect.
+    İptal: Dirty check + ConfirmDialog (eğer değişiklik varsa) → List'e redirect.
+
+    F.6 C.5a + Madde 3 birleşimi:
+      - Ana Bilgiler editable MudTextField + cascading İl/İlçe (Form.razor pattern)
+      - Sistem Bilgileri info ikonu ile toggle (default kapalı)
+      - Tab container tam genişlik (MaxWidth.False)
 *@
+@page "/organizations/{OrganizationId:guid}/sites/new"
 @page "/organizations/{OrganizationId:guid}/sites/{SiteId:guid}"
 @attribute [Authorize]
 @rendermode InteractiveServer
 
+@using System.Text
 @using Microsoft.AspNetCore.Authorization
+@using SiteHub.Contracts.Geography
 @using SiteHub.Contracts.Organizations
 @using SiteHub.Contracts.Sites
+@using SiteHub.Domain.Text
 @using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared.Dialogs
 
 @inject ISitesApi SitesApi
 @inject IOrganizationsApi OrganizationsApi
 @inject IGeographyApi GeographyApi
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
-<PageTitle>@(_site?.Name ?? "Site Detayı") — SiteHub</PageTitle>
+<PageTitle>@(_isEditMode ? (_loadedDetail?.Name ?? "Site Düzenle") : "Yeni Site") — SiteHub</PageTitle>
 
-@* MaxWidth.False → body tam genişlik (madde 1). Yan padding için px-4. *@
 <MudContainer MaxWidth="MaxWidth.False" Class="mt-4 px-4">
 
     @if (_loading)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
     }
-    else if (_loadError)
+    else if (_initialLoadFailed)
     {
         <MudAlert Severity="Severity.Error" Class="my-4">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4">
                 <MudText>@_errorMessage</MudText>
                 <MudButton Variant="Variant.Text"
                            Color="Color.Primary"
-                           OnClick="GoToList">
+                           OnClick="NavigateBack">
                     Site Listesine Dön
                 </MudButton>
             </MudStack>
         </MudAlert>
     }
-    else if (_site is not null)
+    else
     {
-        @* Breadcrumb: Organizasyonlar › [Org] › Siteler › [Site Adı] *@
+        @* Breadcrumb *@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
             <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
                 <MudText Typo="Typo.body2">Organizasyonlar</MudText>
@@ -69,7 +73,7 @@
                      Style="color: var(--mud-palette-text-secondary);" />
             <MudLink Href="@($"/organizations/{OrganizationId}")"
                      Color="Color.Primary" Underline="Underline.Hover">
-                <MudText Typo="Typo.body2">@(_site.OrganizationName ?? "...")</MudText>
+                <MudText Typo="Typo.body2">@(_organizationName ?? "...")</MudText>
             </MudLink>
             <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
                      Size="Size.Small"
@@ -83,77 +87,84 @@
                      Style="color: var(--mud-palette-text-secondary);" />
             <MudText Typo="Typo.body2"
                      Style="color: var(--mud-palette-text-secondary);">
-                @_site.Name
+                @(_isEditMode ? (_loadedDetail?.Name ?? "...") : "Yeni")
             </MudText>
         </MudStack>
 
-        @* Durum badge'i — tek başına, sol (madde 5 + 7: H5 başlık + Listeye Dön kaldırıldı) *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-            @if (_site.IsActive)
-            {
-                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
-                            border-radius: 999px; background-color: var(--mud-palette-success-darken);
-                            color: #ffffff; font-size: 0.875rem;
-                            font-weight: 500; line-height: 1;">
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
-                             Size="Size.Small"
-                             Style="color: inherit;" />
-                    <span>Aktif</span>
-                </div>
-            }
-            else
-            {
-                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
-                            border-radius: 999px; background-color: var(--mud-palette-warning);
-                            color: var(--mud-palette-warning-contrastText); font-size: 0.875rem;
-                            font-weight: 500; line-height: 1;">
-                    <MudIcon Icon="@Icons.Material.Filled.Block"
-                             Size="Size.Small"
-                             Style="color: inherit;" />
-                    <span>Pasif</span>
-                </div>
-            }
-        </MudStack>
+        @* Durum badge — sadece edit mode'da, oluştururken henüz yok *@
+        @if (_isEditMode && _loadedDetail is not null)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+                @if (_loadedDetail.IsActive)
+                {
+                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                                border-radius: 999px; background-color: var(--mud-palette-success-darken);
+                                color: #ffffff; font-size: 0.875rem;
+                                font-weight: 500; line-height: 1;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Small"
+                                 Style="color: inherit;" />
+                        <span>Aktif</span>
+                    </div>
+                }
+                else
+                {
+                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+                                border-radius: 999px; background-color: var(--mud-palette-warning);
+                                color: var(--mud-palette-warning-contrastText); font-size: 0.875rem;
+                                font-weight: 500; line-height: 1;">
+                        <MudIcon Icon="@Icons.Material.Filled.Block"
+                                 Size="Size.Small"
+                                 Style="color: inherit;" />
+                        <span>Pasif</span>
+                    </div>
+                }
+            </MudStack>
+        }
 
-        @* Tab yapısı — 8 tab (madde 2: Yapı Şeması + Abonelikler eklendi) *@
+        @* Tab yapısı — Create mode'da sadece Ana Bilgiler, Edit mode'da 8 tab *@
         <MudPaper Elevation="1" Class="pa-0">
             <MudTabs Elevation="0"
                      Rounded="true"
                      ApplyEffectsToContainer="true"
                      Color="Color.Primary">
 
+                @* Tab 1: Ana Bilgiler — HER DURUMDA görünür, editable *@
                 <MudTabPanel Text="Ana Bilgiler" Icon="@Icons.Material.Filled.Info" Class="pa-4">
                     @MainInfoTab
                 </MudTabPanel>
 
-                <MudTabPanel Text="Banka & Hesaplar" Icon="@Icons.Material.Filled.AccountBalance" Class="pa-4">
-                    @PlaceholderTab("Banka & Hesaplar", "Site'ın banka hesapları ve ilişkili banka bilgileri burada yönetilecek.")
-                </MudTabPanel>
+                @if (_isEditMode)
+                {
+                    @* Edit mode'da 7 ek placeholder tab *@
+                    <MudTabPanel Text="Banka & Hesaplar" Icon="@Icons.Material.Filled.AccountBalance" Class="pa-4">
+                        @PlaceholderTab("Banka & Hesaplar", "Site'ın banka hesapları ve ilişkili banka bilgileri burada yönetilecek.")
+                    </MudTabPanel>
 
-                <MudTabPanel Text="Muhasebe" Icon="@Icons.Material.Filled.Calculate" Class="pa-4">
-                    @PlaceholderTab("Muhasebe", "Muhasebe dönemleri, hesap planı ve raporlar burada yer alacak.")
-                </MudTabPanel>
+                    <MudTabPanel Text="Muhasebe" Icon="@Icons.Material.Filled.Calculate" Class="pa-4">
+                        @PlaceholderTab("Muhasebe", "Muhasebe dönemleri, hesap planı ve raporlar burada yer alacak.")
+                    </MudTabPanel>
 
-                <MudTabPanel Text="Finans" Icon="@Icons.Material.Filled.TrendingUp" Class="pa-4">
-                    @PlaceholderTab("Finans", "Tahsilat, ödeme, bakiye ve nakit akışı bilgileri burada yönetilecek.")
-                </MudTabPanel>
+                    <MudTabPanel Text="Finans" Icon="@Icons.Material.Filled.TrendingUp" Class="pa-4">
+                        @PlaceholderTab("Finans", "Tahsilat, ödeme, bakiye ve nakit akışı bilgileri burada yönetilecek.")
+                    </MudTabPanel>
 
-                <MudTabPanel Text="İK" Icon="@Icons.Material.Filled.People" Class="pa-4">
-                    @PlaceholderTab("İnsan Kaynakları", "Personel, bordro ve özlük işlemleri burada yer alacak. İlk olarak Bordro bölümü eklenecek.")
-                </MudTabPanel>
+                    <MudTabPanel Text="İK" Icon="@Icons.Material.Filled.People" Class="pa-4">
+                        @PlaceholderTab("İnsan Kaynakları", "Personel, bordro ve özlük işlemleri burada yer alacak. İlk olarak Bordro bölümü eklenecek.")
+                    </MudTabPanel>
 
-                <MudTabPanel Text="Belgeler" Icon="@Icons.Material.Filled.Folder" Class="pa-4">
-                    @PlaceholderTab("Belgeler", "Yönetim Karar Defteri, Denetim Karar Defteri, Yönetim Planları, Vaziyet Planları, Mali Raporlar ve Diğer belgeler kategorilerinde dosya yönetimi burada yapılacak.")
-                </MudTabPanel>
+                    <MudTabPanel Text="Belgeler" Icon="@Icons.Material.Filled.Folder" Class="pa-4">
+                        @PlaceholderTab("Belgeler", "Yönetim Karar Defteri, Denetim Karar Defteri, Yönetim Planları, Vaziyet Planları, Mali Raporlar ve Diğer belgeler kategorilerinde dosya yönetimi burada yapılacak.")
+                    </MudTabPanel>
 
-                @* Yeni tablar — madde 2 *@
-                <MudTabPanel Text="Yapı Şeması" Icon="@Icons.Material.Filled.AccountTree" Class="pa-4">
-                    @PlaceholderTab("Yapı Şeması", "Site'ın blok, kat, daire/bağımsız bölüm yapısı burada yönetilecek.")
-                </MudTabPanel>
+                    <MudTabPanel Text="Yapı Şeması" Icon="@Icons.Material.Filled.AccountTree" Class="pa-4">
+                        @PlaceholderTab("Yapı Şeması", "Site'ın blok, kat, daire/bağımsız bölüm yapısı burada yönetilecek.")
+                    </MudTabPanel>
 
-                <MudTabPanel Text="Abonelikler" Icon="@Icons.Material.Filled.Subscriptions" Class="pa-4">
-                    @PlaceholderTab("Abonelikler", "Elektrik, su, doğalgaz, internet vb. abonelik bilgileri burada yönetilecek.")
-                </MudTabPanel>
+                    <MudTabPanel Text="Abonelikler" Icon="@Icons.Material.Filled.Subscriptions" Class="pa-4">
+                        @PlaceholderTab("Abonelikler", "Elektrik, su, doğalgaz, internet vb. abonelik bilgileri burada yönetilecek.")
+                    </MudTabPanel>
+                }
 
             </MudTabs>
         </MudPaper>
@@ -162,71 +173,135 @@
 </MudContainer>
 
 @* ────────────────────────────────────────────────────────────────────────── *@
-@* TAB FRAGMENTS — RenderFragment olarak inline tanımlı                       *@
+@* TAB FRAGMENTS                                                              *@
 @* ────────────────────────────────────────────────────────────────────────── *@
 
 @code {
-    // ─── Ana Bilgiler tab içeriği — 2 kart full + Sistem Bilgileri toggle'lı ──
     private RenderFragment MainInfoTab => @<text>
-        <MudGrid>
-            @* Site kimlik bilgileri *@
-            <MudItem xs="12" md="6">
-                <MudPaper Class="pa-4 h-100" Elevation="0" Outlined="true">
-                    <MudText Typo="Typo.h6" Class="mb-3">Site Bilgileri</MudText>
-                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
-                        <tbody>
-                            <tr>
-                                <th style="width: 40%;">Site Adı</th>
-                                <td>@_site!.Name</td>
-                            </tr>
-                            <tr>
-                                <th>Ticari Ünvan</th>
-                                <td>@OrEmDash(_site!.CommercialTitle)</td>
-                            </tr>
-                            <tr>
-                                <th>Site Kodu</th>
-                                <td><code>@_site!.Code</code></td>
-                            </tr>
-                            <tr>
-                                <th>VKN</th>
-                                <td>@OrEmDash(_site!.TaxId)</td>
-                            </tr>
-                        </tbody>
-                    </MudSimpleTable>
-                </MudPaper>
-            </MudItem>
+        <MudForm @ref="_form" Model="_model" ValidationDelay="0">
+            <MudGrid Spacing="3">
+                @* Site Adı *@
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Name"
+                                  Label="Site Adı"
+                                  Required="true"
+                                  RequiredError="Site adı zorunludur."
+                                  MaxLength="200"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Normal"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Apartment"
+                                  Immediate="true" />
+                </MudItem>
 
-            @* Adres + IBAN *@
-            <MudItem xs="12" md="6">
-                <MudPaper Class="pa-4 h-100" Elevation="0" Outlined="true">
-                    <MudText Typo="Typo.h6" Class="mb-3">Adres ve Finans</MudText>
-                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false">
-                        <tbody>
-                            <tr>
-                                <th style="width: 40%;">Adres</th>
-                                <td>@OrEmDash(_site!.Address)</td>
-                            </tr>
-                            <tr>
-                                <th>İl</th>
-                                <td>@OrEmDash(_provinceName)</td>
-                            </tr>
-                            <tr>
-                                <th>İlçe</th>
-                                <td>@OrEmDash(_districtName)</td>
-                            </tr>
-                            <tr>
-                                <th>IBAN</th>
-                                <td>@OrEmDash(_site!.Iban)</td>
-                            </tr>
-                        </tbody>
-                    </MudSimpleTable>
-                </MudPaper>
-            </MudItem>
+                @* Ticari Ünvan *@
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.CommercialTitle"
+                                  Label="Ticari Ünvan"
+                                  MaxLength="500"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Normal"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Gavel"
+                                  HelperText="Tüzel kişilik varsa (opsiyonel)." />
+                </MudItem>
 
-            @* Sistem bilgileri — toggle ile aç/kapa (madde 6). Default kapalı. *@
-            <MudItem xs="12">
-                <MudPaper Class="pa-4" Elevation="0" Outlined="true">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-0">
+                @* İl *@
+                <MudItem xs="12" md="6">
+                    <MudAutocomplete T="ProvinceDto"
+                                     Value="_selectedProvince"
+                                     ValueChanged="OnProvinceChangedAsync"
+                                     Label="İl"
+                                     Required="true"
+                                     RequiredError="İl zorunludur."
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Normal"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Map"
+                                     SearchFunc="SearchProvinces"
+                                     ToStringFunc="@(p => p?.Name ?? string.Empty)"
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="false"
+                                     CoerceValue="false"
+                                     DebounceInterval="150"
+                                     Clearable="true"
+                                     OpenOnFocus="true"
+                                     AnchorOrigin="Origin.BottomCenter"
+                                     TransformOrigin="Origin.TopCenter"
+                                     Disabled="_provinces.Count == 0"
+                                     HelperText="İl adını yazıp arayabilirsiniz." />
+                </MudItem>
+
+                @* İlçe *@
+                <MudItem xs="12" md="6">
+                    <MudAutocomplete T="DistrictDto"
+                                     @bind-Value="_selectedDistrict"
+                                     Label="İlçe"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Normal"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Place"
+                                     SearchFunc="SearchDistricts"
+                                     ToStringFunc="@(d => d?.Name ?? string.Empty)"
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="false"
+                                     CoerceValue="false"
+                                     DebounceInterval="150"
+                                     Clearable="true"
+                                     OpenOnFocus="true"
+                                     AnchorOrigin="Origin.BottomCenter"
+                                     TransformOrigin="Origin.TopCenter"
+                                     Disabled="@(_selectedProvince is null || _districts.Count == 0)"
+                                     HelperText="@(_selectedProvince is null ? "Önce il seçiniz." : "İlçe adı ile arayabilirsiniz (opsiyonel).")" />
+                </MudItem>
+
+                @* Adres *@
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Address"
+                                  Label="Adres"
+                                  Required="true"
+                                  RequiredError="Adres zorunludur."
+                                  Lines="2"
+                                  MaxLength="1000"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Normal"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.LocationOn" />
+                </MudItem>
+
+                @* VKN *@
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.TaxId"
+                                  Label="VKN (Vergi Numarası)"
+                                  Validation="@(new Func<string?, string?>(ValidateTaxId))"
+                                  MaxLength="10"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Normal"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Badge"
+                                  Immediate="true"
+                                  HelperText="Site'ın kendi tüzel kişiliği varsa (opsiyonel, 10 hane)." />
+                </MudItem>
+
+                @* IBAN *@
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Iban"
+                                  Label="IBAN"
+                                  Validation="@(new Func<string?, string?>(ValidateIban))"
+                                  MaxLength="32"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Normal"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.AccountBalance"
+                                  HelperText="TR + 24 rakam (opsiyonel)." />
+                </MudItem>
+            </MudGrid>
+
+            @* Sistem Bilgileri — sadece edit mode'da, toggle ile gizli *@
+            @if (_isEditMode && _loadedDetail is not null)
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="0" Outlined="true">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                         <MudText Typo="Typo.h6">Sistem Bilgileri</MudText>
                         <MudIconButton Icon="@(_systemInfoOpen ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.Info)"
                                        Size="Size.Small"
@@ -239,33 +314,84 @@
                         <MudSimpleTable Dense="true" Hover="true" Elevation="0" Bordered="false" Class="mt-3">
                             <tbody>
                                 <tr>
-                                    <th style="width: 25%;">Oluşturulma Tarihi</th>
-                                    <td>@FormatLocal(_site!.CreatedAt)</td>
+                                    <th style="width: 25%;">Site Kodu</th>
+                                    <td><code>@_loadedDetail.Code</code></td>
+                                </tr>
+                                <tr>
+                                    <th>Oluşturulma Tarihi</th>
+                                    <td>@FormatLocal(_loadedDetail.CreatedAt)</td>
                                 </tr>
                                 <tr>
                                     <th>Oluşturan</th>
-                                    <td>@OrEmDash(_site!.CreatedByName)</td>
+                                    <td>@OrEmDash(_loadedDetail.CreatedByName)</td>
                                 </tr>
-                                @if (_site!.UpdatedAt is not null)
+                                @if (_loadedDetail.UpdatedAt is not null)
                                 {
                                     <tr>
                                         <th>Son Güncelleme</th>
-                                        <td>@FormatLocal(_site!.UpdatedAt.Value)</td>
+                                        <td>@FormatLocal(_loadedDetail.UpdatedAt.Value)</td>
                                     </tr>
                                     <tr>
                                         <th>Güncelleyen</th>
-                                        <td>@OrEmDash(_site!.UpdatedByName)</td>
+                                        <td>@OrEmDash(_loadedDetail.UpdatedByName)</td>
                                     </tr>
                                 }
                             </tbody>
                         </MudSimpleTable>
                     </MudCollapse>
                 </MudPaper>
-            </MudItem>
-        </MudGrid>
+            }
+
+            @* Action bar — Sil solda (edit mode), İptal/Kaydet sağda *@
+            <MudStack Row="true" Spacing="2" Class="mt-4" AlignItems="AlignItems.Center">
+                @if (_isEditMode)
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="DeleteAsync"
+                               Disabled="_submitting || _deleting">
+                        @if (_deleting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Siliniyor...</span>
+                        }
+                        else
+                        {
+                            <span>Sil</span>
+                        }
+                    </MudButton>
+                }
+
+                <MudSpacer />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.Cancel"
+                           OnClick="CancelAsync"
+                           Disabled="_submitting || _deleting">
+                    İptal
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SubmitAsync"
+                           Disabled="_submitting || _deleting"
+                           StartIcon="@(_submitting ? null : (_isEditMode ? Icons.Material.Filled.Save : Icons.Material.Filled.Add))">
+                    @if (_submitting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Kaydediliyor...</span>
+                    }
+                    else
+                    {
+                        <span>@(_isEditMode ? "Kaydet" : "Oluştur")</span>
+                    }
+                </MudButton>
+            </MudStack>
+        </MudForm>
     </text>;
 
-    // ─── Placeholder tab pattern ─────────────────────────────────────────
     private RenderFragment PlaceholderTab(string title, string description) => @<text>
         <MudStack AlignItems="AlignItems.Center" Class="py-8" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.Construction"
@@ -290,91 +416,465 @@
 
 @code {
     [Parameter] public Guid OrganizationId { get; set; }
-    [Parameter] public Guid SiteId { get; set; }
+    [Parameter] public Guid? SiteId { get; set; }
 
-    private SiteDetailDto? _site;
-    private string? _provinceName;
-    private string? _districtName;
+    private bool _isEditMode => SiteId.HasValue;
+
+    private MudForm? _form;
+    private FormModel _model = new();
+    private FormModel _initialSnapshot = new();
+    private SiteDetailDto? _loadedDetail;
+
+    private List<ProvinceDto> _provinces = new();
+    private List<DistrictDto> _districts = new();
+    private ProvinceDto? _selectedProvince;
+    private DistrictDto? _selectedDistrict;
+
+    private string? _organizationName;
 
     private bool _loading = true;
-    private bool _loadError = false;
+    private bool _submitting;
+    private bool _deleting;
+    private bool _initialLoadFailed;
     private string _errorMessage = string.Empty;
 
-    // Sistem Bilgileri toggle state (madde 6)
+    // Sistem Bilgileri toggle
     private bool _systemInfoOpen = false;
+
+    // Route param'ı değişince (Create → Edit redirect) re-init için kullanılan cache
+    private Guid? _lastLoadedSiteId;
+    private Guid _lastLoadedOrgId;
+
+    private sealed class FormModel
+    {
+        public string Name { get; set; } = "";
+        public string? CommercialTitle { get; set; }
+        public Guid? ProvinceId { get; set; }
+        public Guid? DistrictId { get; set; }
+        public string Address { get; set; } = "";
+        public string? Iban { get; set; }
+        public string? TaxId { get; set; }
+
+        public FormModel Clone() => new()
+        {
+            Name = Name,
+            CommercialTitle = CommercialTitle,
+            ProvinceId = ProvinceId,
+            DistrictId = DistrictId,
+            Address = Address,
+            Iban = Iban,
+            TaxId = TaxId
+        };
+
+        public bool EqualsByFields(FormModel other) =>
+            Eq(Name, other.Name) &&
+            Eq(CommercialTitle, other.CommercialTitle) &&
+            ProvinceId == other.ProvinceId &&
+            DistrictId == other.DistrictId &&
+            Eq(Address, other.Address) &&
+            Eq(Iban, other.Iban) &&
+            Eq(TaxId, other.TaxId);
+
+        private static bool Eq(string? a, string? b) =>
+            (a ?? string.Empty) == (b ?? string.Empty);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
-        await LoadAsync();
-        StateHasChanged();
+        if (firstRender)
+        {
+            await InitialLoadAsync();
+            _lastLoadedSiteId = SiteId;
+            _lastLoadedOrgId = OrganizationId;
+            _loading = false;
+            StateHasChanged();
+        }
     }
 
-    private async Task LoadAsync()
+    /// <summary>
+    /// Route parametresi değişince tetiklenir (Blazor SPA navigation).
+    /// Create → Edit redirect'inde aynı component ama farklı parametrelerle.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
     {
-        _loading = true;
-        _loadError = false;
+        // İlk render henüz yapılmadıysa OnAfterRenderAsync zaten yükleyecek
+        if (_loading) return;
+
+        // SiteId veya OrganizationId değişti mi?
+        if (_lastLoadedSiteId != SiteId || _lastLoadedOrgId != OrganizationId)
+        {
+            _loading = true;
+            _initialLoadFailed = false;
+            _loadedDetail = null;
+            _model = new FormModel();
+            _selectedProvince = null;
+            _selectedDistrict = null;
+            _districts.Clear();
+
+            await InitialLoadAsync();
+            _lastLoadedSiteId = SiteId;
+            _lastLoadedOrgId = OrganizationId;
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InitialLoadAsync()
+    {
+        _initialLoadFailed = false;
         _errorMessage = string.Empty;
 
         try
         {
-            _site = await SitesApi.GetByIdAsync(SiteId);
+            var orgTask = OrganizationsApi.GetByIdAsync(OrganizationId);
+            var provincesTask = GeographyApi.GetProvincesAsync();
+            await Task.WhenAll(orgTask, provincesTask);
 
-            if (_site is null)
+            var org = await orgTask;
+            if (org is null)
             {
-                _loadError = true;
-                _errorMessage = "Aranan site bulunamadı (silinmiş veya erişim yetkiniz yok olabilir).";
+                _initialLoadFailed = true;
+                _errorMessage = "Organizasyon yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.";
                 return;
             }
+            _organizationName = org.Name;
 
-            if (_site.OrganizationId != OrganizationId)
+            _provinces = (await provincesTask).OrderBy(p => p.Name).ToList();
+
+            if (_isEditMode && SiteId.HasValue)
             {
-                _loadError = true;
-                _errorMessage = "Bu site seçili organizasyona ait değil.";
-                _site = null;
-                return;
+                var detail = await SitesApi.GetByIdAsync(SiteId.Value);
+                if (detail is null)
+                {
+                    _initialLoadFailed = true;
+                    _errorMessage = "Site yüklenemedi. Silinmiş veya erişim yetkiniz yok olabilir.";
+                    return;
+                }
+
+                if (detail.OrganizationId != OrganizationId)
+                {
+                    _initialLoadFailed = true;
+                    _errorMessage = "Bu site seçili organizasyona ait değil.";
+                    return;
+                }
+
+                _loadedDetail = detail;
+                _model = new FormModel
+                {
+                    Name = detail.Name,
+                    CommercialTitle = detail.CommercialTitle,
+                    ProvinceId = detail.ProvinceId,
+                    DistrictId = detail.DistrictId,
+                    Address = detail.Address,
+                    Iban = detail.Iban,
+                    TaxId = detail.TaxId
+                };
+
+                _selectedProvince = _provinces.FirstOrDefault(p => p.Id == detail.ProvinceId);
+
+                if (detail.ProvinceId != Guid.Empty)
+                {
+                    await LoadDistrictsAsync(detail.ProvinceId);
+                    if (detail.DistrictId.HasValue)
+                    {
+                        _selectedDistrict = _districts.FirstOrDefault(
+                            d => d.Id == detail.DistrictId.Value);
+                    }
+                }
             }
 
-            await LoadGeographyNamesAsync();
+            _initialSnapshot = _model.Clone();
         }
         catch (Exception ex)
         {
-            _loadError = true;
-            _errorMessage = $"Site bilgisi yüklenemedi: {ex.Message}";
+            _initialLoadFailed = true;
+            _errorMessage = $"Yükleme hatası: {ex.Message}";
+        }
+    }
+
+    // ─── Autocomplete search ─────────────────────────────────────────────
+
+    private static string NormalizeForSearch(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : TurkishNormalizer.Normalize(value.Normalize(NormalizationForm.FormC));
+
+    private Task<IEnumerable<ProvinceDto>> SearchProvinces(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<ProvinceDto>>(_provinces);
+
+        var needle = NormalizeForSearch(value);
+        return Task.FromResult(_provinces.Where(p =>
+            NormalizeForSearch(p.Name).Contains(needle, StringComparison.Ordinal)));
+    }
+
+    private Task<IEnumerable<DistrictDto>> SearchDistricts(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<DistrictDto>>(_districts);
+
+        var needle = NormalizeForSearch(value);
+        return Task.FromResult(_districts.Where(d =>
+            NormalizeForSearch(d.Name).Contains(needle, StringComparison.Ordinal)));
+    }
+
+    // ─── Cascading İl → İlçe ─────────────────────────────────────────────
+
+    private async Task OnProvinceChangedAsync(ProvinceDto? newProvince)
+    {
+        _selectedProvince = newProvince;
+        _model.ProvinceId = newProvince?.Id;
+
+        _selectedDistrict = null;
+        _model.DistrictId = null;
+        _districts.Clear();
+
+        if (newProvince is not null)
+        {
+            await LoadDistrictsAsync(newProvince.Id);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LoadDistrictsAsync(Guid provinceId)
+    {
+        try
+        {
+            var list = await GeographyApi.GetDistrictsByProvinceAsync(provinceId);
+            _districts = list.OrderBy(d => d.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"İlçeler yüklenemedi: {ex.Message}", Severity.Error);
+            _districts = new List<DistrictDto>();
+        }
+    }
+
+    // ─── Cancel + Dirty Check ────────────────────────────────────────────
+
+    private bool IsDirty()
+    {
+        _model.DistrictId = _selectedDistrict?.Id;
+        return !_model.EqualsByFields(_initialSnapshot);
+    }
+
+    private async Task CancelAsync()
+    {
+        if (!IsDirty())
+        {
+            NavigateBack();
+            return;
+        }
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, "Yaptığınız değişiklikler kaydedilmeyecek. Devam edilsin mi?" },
+            { x => x.ConfirmText, "Evet, Vazgeç" },
+            { x => x.CancelText, "Hayır, Devam Et" },
+            { x => x.ConfirmColor, Color.Warning },
+            { x => x.ConfirmIcon, Icons.Material.Filled.Cancel }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Sayfadan ayrılmak mı istiyorsunuz?", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            NavigateBack();
+        }
+    }
+
+    private void NavigateBack() =>
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites");
+
+    // ─── Validation ───────────────────────────────────────────────────────
+
+    private static string? ValidateTaxId(string? taxId)
+    {
+        if (string.IsNullOrWhiteSpace(taxId)) return null;
+        if (taxId.Length > 10) return "VKN en fazla 10 hane olmalı.";
+        if (!taxId.All(char.IsDigit)) return "VKN sadece rakam içermeli.";
+        if (taxId.All(c => c == '0')) return "VKN tamamen sıfır olamaz.";
+        return null;
+    }
+
+    private static string? ValidateIban(string? iban)
+    {
+        if (string.IsNullOrWhiteSpace(iban)) return null;
+        var normalized = iban.Replace(" ", "").ToUpperInvariant();
+        if (normalized.Length != 26) return "IBAN 26 karakter olmalı (TR + 24 rakam).";
+        if (!normalized.StartsWith("TR", StringComparison.Ordinal)) return "IBAN 'TR' ile başlamalı.";
+        if (!normalized.AsSpan(2).ToString().All(char.IsDigit)) return "IBAN 'TR' sonrası 24 rakam olmalı.";
+        return null;
+    }
+
+    // ─── Submit ───────────────────────────────────────────────────────────
+
+    private async Task SubmitAsync()
+    {
+        if (_form is null) return;
+
+        _model.ProvinceId = _selectedProvince?.Id;
+        _model.DistrictId = _selectedDistrict?.Id;
+
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        _submitting = true;
+        try
+        {
+            if (_isEditMode && SiteId.HasValue)
+                await UpdateAsync(SiteId.Value);
+            else
+                await CreateAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Beklenmeyen hata: {ex.Message}", Severity.Error);
         }
         finally
         {
-            _loading = false;
+            _submitting = false;
         }
     }
 
-    private async Task LoadGeographyNamesAsync()
+    private async Task CreateAsync()
     {
-        if (_site is null) return;
+        if (!_model.ProvinceId.HasValue)
+        {
+            Snackbar.Add("İl seçiniz.", Severity.Warning);
+            return;
+        }
 
+        var request = new CreateSiteRequest(
+            Name: _model.Name.Trim(),
+            ProvinceId: _model.ProvinceId.Value,
+            Address: _model.Address.Trim(),
+            CommercialTitle: string.IsNullOrWhiteSpace(_model.CommercialTitle)
+                ? null : _model.CommercialTitle.Trim(),
+            DistrictId: _model.DistrictId,
+            Iban: NormalizeIban(_model.Iban),
+            TaxId: NormalizeTaxId(_model.TaxId));
+
+        var result = await SitesApi.CreateAsync(OrganizationId, request);
+
+        if (result.Success)
+        {
+            Snackbar.Add($"Site oluşturuldu. Kod: {result.Code}", Severity.Success);
+            // Yeni oluşturulan site'ın Edit mode'una yönlendir — kullanıcı diğer tabları görsün
+            Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{result.SiteId}");
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Oluşturma başarısız.", Severity.Error);
+        }
+    }
+
+    private async Task UpdateAsync(Guid siteId)
+    {
+        if (!_model.ProvinceId.HasValue)
+        {
+            Snackbar.Add("İl seçiniz.", Severity.Warning);
+            return;
+        }
+
+        var request = new UpdateSiteRequest(
+            Name: _model.Name.Trim(),
+            Address: _model.Address.Trim(),
+            ProvinceId: _model.ProvinceId.Value,
+            CommercialTitle: string.IsNullOrWhiteSpace(_model.CommercialTitle)
+                ? null : _model.CommercialTitle.Trim(),
+            DistrictId: _model.DistrictId,
+            Iban: NormalizeIban(_model.Iban),
+            TaxId: NormalizeTaxId(_model.TaxId));
+
+        var result = await SitesApi.UpdateAsync(siteId, request);
+
+        if (result.Success)
+        {
+            Snackbar.Add(result.Message ?? "Güncellendi.", Severity.Success);
+            // Sayfada kal, snapshot'ı güncelle (dirty check resetlensin)
+            _initialSnapshot = _model.Clone();
+            // Detail'i yeniden yükle (UpdatedAt bilgisini tazele)
+            _loadedDetail = await SitesApi.GetByIdAsync(siteId);
+        }
+        else
+        {
+            Snackbar.Add(result.Message ?? "Güncelleme başarısız.", Severity.Error);
+        }
+    }
+
+    // ─── Delete (soft) ────────────────────────────────────────────────────
+
+    private async Task DeleteAsync()
+    {
+        if (!_isEditMode || !SiteId.HasValue || _loadedDetail is null) return;
+
+        var parameters = new DialogParameters<DeleteConfirmDialog>
+        {
+            { x => x.Message, $"\"{_loadedDetail.Name}\" sitesini silmek istediğinize emin misiniz?" },
+            { x => x.MinLength, 5 }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+
+        var dialog = await DialogService.ShowAsync<DeleteConfirmDialog>(
+            "Siteyi Sil", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is null || result.Canceled || result.Data is not string reason)
+            return;
+
+        _deleting = true;
         try
         {
-            var provinces = await GeographyApi.GetProvincesAsync();
-            var province = provinces.FirstOrDefault(p => p.Id == _site.ProvinceId);
-            _provinceName = province?.Name;
+            var response = await SitesApi.DeleteAsync(
+                SiteId.Value, new DeleteSiteRequest(reason));
 
-            if (_site.DistrictId.HasValue && province is not null)
+            if (response.Success)
             {
-                var districts = await GeographyApi.GetDistrictsByProvinceAsync(province.Id);
-                var district = districts.FirstOrDefault(d => d.Id == _site.DistrictId.Value);
-                _districtName = district?.Name;
+                Snackbar.Add("Site silindi.", Severity.Success);
+                NavigateBack();
+            }
+            else
+            {
+                Snackbar.Add(response.Message ?? "Silme başarısız.", Severity.Error);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Sessiz fail
+            Snackbar.Add($"Silme hatası: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _deleting = false;
         }
     }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
 
     private void ToggleSystemInfo() => _systemInfoOpen = !_systemInfoOpen;
 
-    private void GoToList() =>
-        Nav.NavigateTo($"/organizations/{OrganizationId}/sites");
+    private static string? NormalizeIban(string? raw) =>
+        string.IsNullOrWhiteSpace(raw) ? null : raw.Replace(" ", "").ToUpperInvariant();
+
+    private static string? NormalizeTaxId(string? raw) =>
+        string.IsNullOrWhiteSpace(raw) ? null : raw.Trim().PadLeft(10, '0');
 
     private static string FormatLocal(DateTimeOffset utc)
         => utc.LocalDateTime.ToString("dd.MM.yyyy HH:mm");

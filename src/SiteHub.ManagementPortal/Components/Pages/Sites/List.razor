@@ -3,9 +3,10 @@
 
     Route: /organizations/{OrganizationId}/sites
 
-    F.6 C.5a rev 1:
-      - H4 "Siteler" başlığı kaldırıldı, "+ Yeni Site" butonu sağ üstte tek başına (madde 8)
-      - Aktif badge: koyu yeşil + beyaz yazı (madde 8)
+    F.6 Madde 3:
+      - İşlemler kolonu (göz + kalem) KALDIRILDI
+      - Satıra tıklayınca /organizations/{orgId}/sites/{siteId} → Detail (Edit mode)
+      - "+ Yeni Site" butonu /sites/new → Detail (Create mode)
 *@
 @page "/organizations/{OrganizationId:guid}/sites"
 @rendermode InteractiveServer
@@ -26,7 +27,7 @@
 
 <PageTitle>@(_organizationName ?? "Siteler") — SiteHub</PageTitle>
 
-@* Breadcrumb: Organizasyonlar > [Org Adı] > Siteler *@
+@* Breadcrumb *@
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
     <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
         <MudText Typo="Typo.body2">Organizasyonlar</MudText>
@@ -59,7 +60,7 @@
 }
 else
 {
-    @* Sağ üstte Yeni Site butonu — H4 başlık kaldırıldı (madde 8) *@
+    @* Sağ üstte Yeni Site butonu *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
         <MudSpacer />
         <HasPermission Required="@Permissions.Site.Create"
@@ -77,7 +78,7 @@ else
 
     <MudPaper Elevation="1" Class="pa-4">
 
-        @* Toolbar: arama + durum filter *@
+        @* Toolbar *@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
             <MudTextField T="string"
                           Value="_search"
@@ -100,8 +101,10 @@ else
                        Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
         </MudStack>
 
+        @* Tablo — satıra tıklanabilir (OnRowClick callback) *@
         <SiteHubDataGrid T="SiteListItemDto"
                          ServerData="LoadServerData"
+                         OnRowClick="OnRowClick"
                          @ref="_grid">
             <Columns>
                 <PropertyColumn Property="x => x.Code" Title="Kod" />
@@ -112,7 +115,6 @@ else
                 <PropertyColumn Property="x => x.Iban" Title="IBAN" />
                 <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
                     <CellTemplate>
-                        @* Aktif: koyu yeşil arka plan + beyaz yazı (madde 8) *@
                         @if (context.Item.IsActive)
                         {
                             <div style="display: inline-flex; align-items: center; padding: 2px 10px;
@@ -132,33 +134,6 @@ else
                                 Pasif
                             </div>
                         }
-                    </CellTemplate>
-                </TemplateColumn>
-
-                @* F.6 C.5a: İşlemler kolonu — Detay + Düzenle ikonları, HasPermission wrapped *@
-                <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
-                    <CellTemplate>
-                        <MudStack Row="true" Spacing="0">
-                            <HasPermission Required="@Permissions.Site.Read"
-                                           ContextType="MembershipContextType.Site"
-                                           ContextId="@context.Item.Id">
-                                <MudIconButton Icon="@Icons.Material.Filled.Visibility"
-                                               Size="Size.Small"
-                                               Color="Color.Default"
-                                               OnClick="@(() => NavigateToDetail(context.Item.Id))"
-                                               title="Detay" />
-                            </HasPermission>
-
-                            <HasPermission Required="@Permissions.Site.Update"
-                                           ContextType="MembershipContextType.Site"
-                                           ContextId="@context.Item.Id">
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                               Size="Size.Small"
-                                               Color="Color.Primary"
-                                               OnClick="@(() => NavigateToEdit(context.Item.Id))"
-                                               title="Düzenle" />
-                            </HasPermission>
-                        </MudStack>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
@@ -275,9 +250,11 @@ else
     private void NavigateToCreate() =>
         Nav.NavigateTo($"/organizations/{OrganizationId}/sites/new");
 
-    private void NavigateToDetail(Guid siteId) =>
-        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{siteId}");
-
-    private void NavigateToEdit(Guid siteId) =>
-        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{siteId}/edit");
+    /// <summary>
+    /// Satıra tıklanınca Detail (Edit mode) sayfasına git.
+    /// </summary>
+    private void OnRowClick(SiteListItemDto item)
+    {
+        Nav.NavigateTo($"/organizations/{OrganizationId}/sites/{item.Id}");
+    }
 }
