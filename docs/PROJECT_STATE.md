@@ -462,15 +462,17 @@ F.6 C (Site CRUD UI) tamamlandı. Kullanıcı gözden geçirmesiyle 12 madde aç
   - Tablo: Tarih / Kullanıcı / IP / Browser / Değişen Alanlar (eski → yeni)
   - **DB tarafı:** `audit.entity_changes` tablosu zaten dolu, sadece read endpoint gerekli
 
-- [ ] **Madde 11 — Organization Domain Genişletme** (Büyük)
+- [ ] **Madde 11 — Organization + Site Domain Genişletme** (Büyük)
+  - **Organization** ve **Site** için AYNI alanlar eklenecek (kullanıcı kararı 2026-04-24):
   - Yeni alanlar: Sözleşme tarihi (Tarih), Hizmet başlama tarihi (Tarih), Hizmet bitiş tarihi (Tarih), Ek süre (0-30 gün, int)
   - Validation kuralları:
     - Sözleşme tarihi ≤ Hizmet başlama tarihi
     - Hizmet başlama tarihi ≤ Hizmet bitiş tarihi
     - Ek süre 0-30 arası
   - Organization Detail'in "Sözleşme & Hizmet" tab'ında form
+  - Site Detail'in "Sözleşme & Hizmet" tab'ına ekle (şu an placeholder, ama tab iskelet'te yok — yeni tab eklemek gerekebilir)
   - Alt madde: **Token süresi parametrik** — config ayarları modülü (gelecek ADR)
-  - Domain + migration + form UI + validator
+  - Domain + migration (iki tablo için) + form UI (iki Detail için) + validator
 
 - [ ] **Madde 9 — URL Feistel Code** (Büyük, mimari)
   - GUID yerine `Code` (Feistel encoded) URL'lerde: `/organizations/142857631/sites/271828183`
@@ -621,7 +623,7 @@ F.6 C (Site CRUD UI) tamamlandı. Kullanıcı gözden geçirmesiyle 12 madde aç
 
 **F.6 Kalan (sonraki seanslar):**
 - [ ] **Madde 8 — Genel audit log sistemi** (öncelikli). Shared component + backend endpoint, Org + Site Detail'lerinde Sistem Bilgileri'nin yerine gelecek.
-- [ ] **Madde 11 — Organization domain genişletme.** Sözleşme + Hizmet tarihleri + Ek süre + Token config.
+- [ ] **Madde 11 — Organization + Site Domain genişletme.** Her ikisi için aynı alanlar: Sözleşme + Hizmet tarihleri + Ek süre + Token config. Kullanıcı kararı (2026-04-24).
 - [ ] **Madde 9 — URL Feistel Code.** GUID yerine Code (tüm nav etkilenir).
 - [ ] **Pasife Çek / Aktife Al** toggle Detail sayfalarında.
 - [ ] SiteHubDataGrid: server-side filter (ROADMAP #3), export (#6), AND-search (#7) — F.6 sonrası tek iterasyonda.
