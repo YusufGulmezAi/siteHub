@@ -4,13 +4,9 @@
     Route: /organizations/{OrganizationId}/sites
 
     F.6 Madde 3:
-      - İşlemler kolonu (göz + kalem) kaldırıldı
+      - İşlemler kolonu (göz + kalem) KALDIRILDI
       - Satıra tıklayınca /organizations/{orgId}/sites/{siteId} → Detail (Edit mode)
-
-    F.6 Kategori A (Madde A-b):
-      - Aktif/Pasif switch tablonun üst toolbar'ında — önceki konumdan (MudPaper
-        içindeki ayrı stack) alınıp MudDataGrid'in kendi ToolBarContent slot'una
-        konuldu. Dişli ikonu otomatik olarak switch'in sağında kalıyor.
+      - "+ Yeni Site" butonu /sites/new → Detail (Create mode)
 *@
 @page "/organizations/{OrganizationId:guid}/sites"
 @rendermode InteractiveServer
@@ -31,26 +27,8 @@
 
 <PageTitle>@(_organizationName ?? "Siteler") — SiteHub</PageTitle>
 
-@* Breadcrumb *@
-<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
-    <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
-        <MudText Typo="Typo.body2">Organizasyonlar</MudText>
-    </MudLink>
-    <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-             Size="Size.Small"
-             Style="color: var(--mud-palette-text-secondary);" />
-    <MudLink Href="@($"/organizations/{OrganizationId}")"
-             Color="Color.Primary" Underline="Underline.Hover">
-        <MudText Typo="Typo.body2">@(_organizationName ?? "...")</MudText>
-    </MudLink>
-    <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-             Size="Size.Small"
-             Style="color: var(--mud-palette-text-secondary);" />
-    <MudText Typo="Typo.body2"
-             Style="color: var(--mud-palette-text-secondary);">
-        Siteler
-    </MudText>
-</MudStack>
+@* Breadcrumb — F.6 Madde 5: Shared component *@
+<SiteHubBreadcrumb Items="@_breadcrumbItems" />
 
 @if (_organizationLoadFailed)
 {
@@ -82,7 +60,7 @@ else
 
     <MudPaper Elevation="1" Class="pa-4">
 
-        @* Arama — DataGrid toolbar'ından ayrı kalıyor (header'ın üstünde) *@
+        @* Toolbar *@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
             <MudTextField T="string"
                           Value="_search"
@@ -96,20 +74,20 @@ else
                           Immediate="true"
                           Clearable="true"
                           Style="max-width:420px" />
+
+            <MudSpacer />
+
+            <MudSwitch T="bool" @bind-Value="_onlyActive"
+                       @bind-Value:after="RefreshAsync"
+                       Color="Color.Primary"
+                       Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
         </MudStack>
 
-        @* Tablo — ToolBarContent slot'unda Aktif/Pasif switch (dişlinin solunda) *@
+        @* Tablo — satıra tıklanabilir (OnRowClick callback) *@
         <SiteHubDataGrid T="SiteListItemDto"
                          ServerData="LoadServerData"
                          OnRowClick="OnRowClick"
                          @ref="_grid">
-            <ToolBarContent>
-                <MudSwitch T="bool" @bind-Value="_onlyActive"
-                           @bind-Value:after="RefreshAsync"
-                           Color="Color.Primary"
-                           Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
-                <MudSpacer />
-            </ToolBarContent>
             <Columns>
                 <PropertyColumn Property="x => x.Code" Title="Kod" />
                 <PropertyColumn Property="x => x.Name" Title="Ad" />
@@ -163,6 +141,16 @@ else
 
     private string? _organizationName;
     private bool _organizationLoadFailed;
+
+    // F.6 Madde 5 — Shared SiteHubBreadcrumb yol item'ları (computed)
+    private SiteHubBreadcrumb.BreadcrumbItem[] _breadcrumbItems =>
+        new[]
+        {
+            new SiteHubBreadcrumb.BreadcrumbItem("Yönetim Firmaları", "/organizations"),
+            new SiteHubBreadcrumb.BreadcrumbItem(
+                _organizationName ?? "...", $"/organizations/{OrganizationId}"),
+            new SiteHubBreadcrumb.BreadcrumbItem("Siteler", null)
+        };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

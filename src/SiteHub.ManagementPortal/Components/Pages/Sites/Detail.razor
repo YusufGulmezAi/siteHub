@@ -31,6 +31,7 @@
 @using SiteHub.Contracts.Sites
 @using SiteHub.Domain.Text
 @using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared
 @using SiteHub.ManagementPortal.Components.Shared.Dialogs
 
 @inject ISitesApi SitesApi
@@ -63,33 +64,8 @@
     }
     else
     {
-        @* Breadcrumb *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
-            <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
-                <MudText Typo="Typo.body2">Organizasyonlar</MudText>
-            </MudLink>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                     Size="Size.Small"
-                     Style="color: var(--mud-palette-text-secondary);" />
-            <MudLink Href="@($"/organizations/{OrganizationId}")"
-                     Color="Color.Primary" Underline="Underline.Hover">
-                <MudText Typo="Typo.body2">@(_organizationName ?? "...")</MudText>
-            </MudLink>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                     Size="Size.Small"
-                     Style="color: var(--mud-palette-text-secondary);" />
-            <MudLink Href="@($"/organizations/{OrganizationId}/sites")"
-                     Color="Color.Primary" Underline="Underline.Hover">
-                <MudText Typo="Typo.body2">Siteler</MudText>
-            </MudLink>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                     Size="Size.Small"
-                     Style="color: var(--mud-palette-text-secondary);" />
-            <MudText Typo="Typo.body2"
-                     Style="color: var(--mud-palette-text-secondary);">
-                @(_isEditMode ? (_loadedDetail?.Name ?? "...") : "Yeni")
-            </MudText>
-        </MudStack>
+        @* Breadcrumb — F.6 Madde 5: Shared component *@
+        <SiteHubBreadcrumb Items="@_breadcrumbItems" />
 
         @* Durum badge — sadece edit mode'da, oluştururken henüz yok *@
         @if (_isEditMode && _loadedDetail is not null)
@@ -419,6 +395,19 @@
     [Parameter] public Guid? SiteId { get; set; }
 
     private bool _isEditMode => SiteId.HasValue;
+
+    // F.6 Madde 5 — Shared SiteHubBreadcrumb yol item'ları (computed)
+    private SiteHubBreadcrumb.BreadcrumbItem[] _breadcrumbItems =>
+        new[]
+        {
+            new SiteHubBreadcrumb.BreadcrumbItem("Yönetim Firmaları", "/organizations"),
+            new SiteHubBreadcrumb.BreadcrumbItem(
+                _organizationName ?? "...", $"/organizations/{OrganizationId}"),
+            new SiteHubBreadcrumb.BreadcrumbItem(
+                "Siteler", $"/organizations/{OrganizationId}/sites"),
+            new SiteHubBreadcrumb.BreadcrumbItem(
+                _isEditMode ? (_loadedDetail?.Name ?? "...") : "Yeni", null)
+        };
 
     private MudForm? _form;
     private FormModel _model = new();

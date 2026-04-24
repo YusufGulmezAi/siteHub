@@ -27,6 +27,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using SiteHub.Contracts.Organizations
 @using SiteHub.ManagementPortal.Services.Api
+@using SiteHub.ManagementPortal.Components.Shared
 @using SiteHub.ManagementPortal.Components.Shared.Dialogs
 
 @inject IOrganizationsApi OrganizationsApi
@@ -57,19 +58,8 @@
     }
     else
     {
-        @* Breadcrumb *@
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
-            <MudLink Href="/organizations" Color="Color.Primary" Underline="Underline.Hover">
-                <MudText Typo="Typo.body2">Yönetim Firmaları</MudText>
-            </MudLink>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                     Size="Size.Small"
-                     Style="color: var(--mud-palette-text-secondary);" />
-            <MudText Typo="Typo.body2"
-                     Style="color: var(--mud-palette-text-secondary);">
-                @(_isEditMode ? (_loadedDetail?.Name ?? "...") : "Yeni")
-            </MudText>
-        </MudStack>
+        @* Breadcrumb — F.6 Madde 5: Shared component *@
+        <SiteHubBreadcrumb Items="@_breadcrumbItems" />
 
         @* Durum badge — sadece edit mode'da *@
         @if (_isEditMode && _loadedDetail is not null)
@@ -338,6 +328,16 @@
     [Parameter] public Guid? OrganizationId { get; set; }
 
     private bool _isEditMode => OrganizationId.HasValue;
+
+    // F.6 Madde 5 — Shared SiteHubBreadcrumb için yol item'ları (computed)
+    private SiteHubBreadcrumb.BreadcrumbItem[] _breadcrumbItems =>
+        new[]
+        {
+            new SiteHubBreadcrumb.BreadcrumbItem("Yönetim Firmaları", "/organizations"),
+            new SiteHubBreadcrumb.BreadcrumbItem(
+                _isEditMode ? (_loadedDetail?.Name ?? "...") : "Yeni",
+                null)
+        };
 
     private MudForm? _form;
     private FormModel _model = new();

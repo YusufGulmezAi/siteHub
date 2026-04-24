@@ -1,0 +1,95 @@
+@*
+    SiteHubBreadcrumb — standardize edilmiş breadcrumb component'i (F.6 Madde 5).
+
+    Amaç: Portal'daki tüm sayfalarda tutarlı breadcrumb görünümü.
+    Mevcut pattern (MudStack + MudLink + MudIcon + MudText) 5 farklı sayfada
+    birebir tekrar ediyordu. Bu component onları tek yerde toplar.
+
+    Tasarım kararları (F.6 Madde 5):
+      - Font: Typo.subtitle1 (16px, 500 weight) — body2'den (14px) daha
+        belirgin ama başlık değil.
+      - Alt çizgi: 1px divider (var(--mud-palette-divider)) — sayfayı bölen
+        minimal ayırıcı.
+      - Chevron: Icons.Material.Filled.ChevronRight (Size.Small).
+      - Son item otomatik "current" sayılır (Href null ise tıklanamaz,
+        rengi text-secondary).
+
+    Kullanım:
+        <SiteHubBreadcrumb Items="@_items" />
+
+        @code {
+            private BreadcrumbItem[] _items = Array.Empty<BreadcrumbItem>();
+
+            protected override void OnInitialized()
+            {
+                _items = new[]
+                {
+                    new BreadcrumbItem("Yönetim Firmaları", "/organizations"),
+                    new BreadcrumbItem("ABC İnşaat", null) // son item, tıklanamaz
+                };
+            }
+        }
+
+    Tek item / empty durumu: tek link veya boş array verilirse component
+    hiç render etmez (sayfa üstü çöplük olmasın).
+*@
+
+@if (Items is not null && Items.Length > 0)
+{
+    <div class="sitehub-breadcrumb"
+         style="padding: 4px 0 12px; margin-bottom: 16px;
+                border-bottom: 1px solid var(--mud-palette-divider);">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
+            @for (var i = 0; i < Items.Length; i++)
+            {
+                var item = Items[i];
+                var isLast = i == Items.Length - 1;
+
+                @if (!isLast && !string.IsNullOrEmpty(item.Href))
+                {
+                    <MudLink Href="@item.Href"
+                             Color="Color.Primary"
+                             Underline="Underline.Hover">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 500;">
+                            @item.Text
+                        </MudText>
+                    </MudLink>
+                }
+                else
+                {
+                    @* Son item VEYA Href olmayan ara item: tıklanamaz, gri *@
+                    <MudText Typo="Typo.subtitle1"
+                             Style="font-weight: 500; color: var(--mud-palette-text-secondary);">
+                        @item.Text
+                    </MudText>
+                }
+
+                @if (!isLast)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                             Size="Size.Small"
+                             Style="color: var(--mud-palette-text-secondary);" />
+                }
+            }
+        </MudStack>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Breadcrumb yol öğeleri. Son item otomatik "current" (tıklanamaz).
+    /// Null veya boş ise component hiç render etmez.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public BreadcrumbItem[]? Items { get; set; }
+
+    /// <summary>
+    /// Breadcrumb'ta tek bir yol öğesini temsil eder.
+    /// </summary>
+    /// <param name="Text">Gösterilecek metin (ör. "Yönetim Firmaları").</param>
+    /// <param name="Href">
+    /// Tıklanabilir link URL'i. Null ise item gri + tıklanamaz render edilir
+    /// (son item için doğal kullanım; ara item'larda nadiren).
+    /// </param>
+    public sealed record BreadcrumbItem(string Text, string? Href);
+}
