@@ -13,16 +13,23 @@
                          ServerData="LoadAsync"
                          @ref="_grid"
                          OnRowClick="NavigateToDetail">
+            <ToolBarContent>
+                <MudSwitch @bind-Value="_onlyActive" Label="Aktif" />
+            </ToolBarContent>
             <Columns>
                 <PropertyColumn Property="x => x.Name" Title="Ad" />
                 ...
             </Columns>
         </SiteHubDataGrid>
 
-    ROADMAP notları (sonraki sürümlerde eklenecek):
+    F.6 Kategori A (Madde A-b): ToolBarContent parameter eklendi. MudDataGrid'in
+    yerleşik toolbar'ına (dişli menüsünün olduğu bar) istediğin kontrolleri
+    ekleyebilmen için. Dişli ikonu ToolBarContent'ten sonra otomatik sağa eklenir.
+
+    ROADMAP:
       - 3. Kolon bazlı server-side filter builder
       - 6. Excel + PDF export (filtrelenmiş veri + sıra korumalı)
-      - 7. Çok kelimeli AND arama — server-side (backend handler'larına)
+      - 7. Çok kelimeli AND arama — server-side
 *@
 
 @typeparam T
@@ -49,6 +56,9 @@
                  Class="sitehub-data-grid"
                  RowClick="HandleRowClick"
                  RowClass="@(OnRowClick.HasDelegate ? "cursor-pointer" : "")">
+        <ToolBarContent>
+            @ToolBarContent
+        </ToolBarContent>
         <Columns>
             @Columns
         </Columns>
@@ -68,8 +78,7 @@
             <MudText Class="ma-4">Yükleniyor...</MudText>
         </LoadingContent>
         <PagerContent>
-            @* Pager metinleri artık MudBlazor.Translations paketinden geliyor
-               (Türkçe otomatik — CurrentUICulture 'tr-TR' olduğu için) *@
+            @* Pager metinleri MudBlazor.Translations paketinden gelir (CurrentUICulture 'tr-TR') *@
             <MudDataGridPager T="T" PageSizeOptions="PageSizeOptions" />
         </PagerContent>
     </MudDataGrid>
@@ -86,6 +95,14 @@
     [Parameter, EditorRequired]
     public RenderFragment Columns { get; set; } = default!;
 
+    /// <summary>
+    /// MudDataGrid'in toolbar'ına yerleştirilecek içerik (opsiyonel).
+    /// Dişli ikonu (ShowMenuIcon=true) ToolBarContent'ten sonra otomatik eklenir.
+    /// F.6 Kategori A Madde A-b eklentisi.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ToolBarContent { get; set; }
+
     /// <summary>Kayıt bulunamadığında gösterilecek özel içerik (null ise default alert).</summary>
     [Parameter]
     public RenderFragment? NoRecordsContent { get; set; }
@@ -99,8 +116,8 @@
     public int[] PageSizeOptions { get; set; } = new[] { 10, 20, 50, 100 };
 
     /// <summary>
-    /// Kolon bazlı filtre aktif mi? Default: true (UI filter görünür, ama server-side
-    /// handler henüz desteklemiyor — ROADMAP 3 yapılınca tam çalışacak).
+    /// Kolon bazlı filtre aktif mi? Default: false (UI filter görünmez).
+    /// Server-side handler ROADMAP 3 yapılınca tam çalışacak.
     /// </summary>
     [Parameter]
     public bool Filterable { get; set; } = false;

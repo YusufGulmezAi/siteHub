@@ -13,29 +13,32 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<PageTitle>Organizasyonlar — SiteHub</PageTitle>
+<PageTitle>Yönetim Firmaları — SiteHub</PageTitle>
 
+@*
+    F.6 Kategori A düzeltmeleri:
+      Madde 1: "Yönetim firmaları (Organization)..." alt metni silindi.
+      Madde 2: Başlık "Organizasyonlar" → "Yönetim Firmaları".
+      Madde 3: Aktif badge koyu yeşil + beyaz (success-darken, Site List ile tutarlı).
+*@
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
     <div>
-        <MudText Typo="Typo.h4" Style="font-weight:600">Organizasyonlar</MudText>
-        <MudText Typo="Typo.body2" Style="color:#6B7280">
-            Yönetim firmaları (Organization) — yönetilen siteler bunlara bağlıdır.
-        </MudText>
+        <MudText Typo="Typo.h4" Style="font-weight:600">Yönetim Firmaları</MudText>
     </div>
     <MudSpacer />
-	<HasPermission Required="@Permissions.Organization.Create"
-               ContextType="MembershipContextType.System">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.Add"
-               OnClick="NavigateToCreate">
-        Yeni Organizasyon
-    </MudButton>
-</HasPermission>
+    <HasPermission Required="@Permissions.Organization.Create"
+                   ContextType="MembershipContextType.System">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="NavigateToCreate">
+            Yeni Yönetim Firması
+        </MudButton>
+    </HasPermission>
 </MudStack>
 
 <MudPaper Elevation="1" Class="pa-4">
 
-    @* Toolbar: arama + durum filter *@
+    @* Arama — DataGrid toolbar'ından ayrı kalır (header'ın üstünde) *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
         <MudTextField T="string"
                       Value="_search"
@@ -49,21 +52,20 @@
                       Immediate="true"
                       Clearable="true"
                       Style="max-width:420px" />
-
-        <MudSpacer />
-
-        @* Default olarak "Aktif" seçili — aktif kayıtlar listelenir.
-           Switch kapalı ise pasifler de dahil edilir. *@
-        <MudSwitch T="bool" @bind-Value="_onlyActive"
-                   @bind-Value:after="RefreshAsync"
-                   Color="Color.Primary"
-                   Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
     </MudStack>
 
-    @* Reusable tablo wrapper *@
     <SiteHubDataGrid T="OrganizationListItemDto"
                      ServerData="LoadServerData"
                      @ref="_grid">
+        <ToolBarContent>
+            @* Kategori A Madde A-b: Aktif/Pasif switch DataGrid toolbar'ında (solda).
+               Dişli ikonu (ShowMenuIcon) MudSpacer sayesinde tablonun sağ ucuna konur. *@
+            <MudSwitch T="bool" @bind-Value="_onlyActive"
+                       @bind-Value:after="RefreshAsync"
+                       Color="Color.Primary"
+                       Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
+            <MudSpacer />
+        </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.Code" Title="Kod" />
             <PropertyColumn Property="x => x.Name" Title="Ad" />
@@ -73,16 +75,12 @@
             <PropertyColumn Property="x => x.Email" Title="E-posta" />
             <TemplateColumn Title="Durum" Sortable="false" Filterable="false">
                 <CellTemplate>
-                    @*
-                        Durum badge'i — MudChip MudBlazor 9.0.0'da sessiz render problemi
-                        veriyor (Detail sayfasında da aynı sorun). div + inline style ile
-                        değiştirildi, palette CSS variable ile tema uyumlu.
-                    *@
+                    @* Madde 3: Aktif koyu yeşil + beyaz (Site List ile aynı) *@
                     @if (context.Item.IsActive)
                     {
                         <div style="display: inline-flex; align-items: center; padding: 2px 10px;
-                                    border-radius: 999px; background-color: var(--mud-palette-success);
-                                    color: var(--mud-palette-success-contrastText); font-size: 0.75rem;
+                                    border-radius: 999px; background-color: var(--mud-palette-success-darken);
+                                    color: #ffffff; font-size: 0.75rem;
                                     font-weight: 500; line-height: 1.2;">
                             Aktif
                         </div>
@@ -101,47 +99,41 @@
             </TemplateColumn>
             <TemplateColumn Title="İşlemler" Sortable="false" Filterable="false">
                 <CellTemplate>
-                    @* F.6 B.4: Göz ikonu Detail sayfasına, kalem Edit'e ayrı ayrı gider. *@
                     <MudTooltip Text="Detay">
-		<HasPermission Required="@Permissions.Organization.Read"
-               		ContextType="MembershipContextType.Organization"
-               		ContextId="@context.Item.Id">
-                        <MudIconButton Icon="@Icons.Material.Filled.Visibility"
-                                       Size="Size.Small"
-                                       Color="Color.Primary"
-                                       OnClick="@(() => NavigateToDetail(context.Item.Id))"
-                                       aria-label="Detay" />
-                </HasPermission>    
-		</MudTooltip>
-		
-		
-                    <MudTooltip Text="Düzenle">
-		<HasPermission Required="@Permissions.Organization.Update"
-              		ContextType="MembershipContextType.Organization"
-	               ContextId="@context.Item.Id">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                       Size="Size.Small"
-                                       Color="Color.Default"
-                                       OnClick="@(() => NavigateToEdit(context.Item.Id))"
-                                       aria-label="Düzenle" />
-		</HasPermission>
+                        <HasPermission Required="@Permissions.Organization.Read"
+                                       ContextType="MembershipContextType.Organization"
+                                       ContextId="@context.Item.Id">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => NavigateToDetail(context.Item.Id))"
+                                           aria-label="Detay" />
+                        </HasPermission>
                     </MudTooltip>
-                    @*
-                        F.6 C.4: Siteler action — organizasyonun sitelerini göster.
-                        Mimari: Site işlemleri daima Organization context altında,
-                        nested URL: /organizations/{orgId}/sites
-                    *@
+
+                    <MudTooltip Text="Düzenle">
+                        <HasPermission Required="@Permissions.Organization.Update"
+                                       ContextType="MembershipContextType.Organization"
+                                       ContextId="@context.Item.Id">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Default"
+                                           OnClick="@(() => NavigateToEdit(context.Item.Id))"
+                                           aria-label="Düzenle" />
+                        </HasPermission>
+                    </MudTooltip>
+
                     <MudTooltip Text="Siteler">
-		<HasPermission Required="@Permissions.Site.Read"
-        	       ContextType="MembershipContextType.Organization"
-	               ContextId="@context.Item.Id">
-                        <MudIconButton Icon="@Icons.Material.Filled.Apartment"
-                                       Size="Size.Small"
-                                       Color="Color.Default"
-                                       OnClick="@(() => NavigateToSites(context.Item.Id))"
-                                       aria-label="Siteler" />
-                	</HasPermission>
-		    </MudTooltip>
+                        <HasPermission Required="@Permissions.Site.Read"
+                                       ContextType="MembershipContextType.Organization"
+                                       ContextId="@context.Item.Id">
+                            <MudIconButton Icon="@Icons.Material.Filled.Apartment"
+                                           Size="Size.Small"
+                                           Color="Color.Default"
+                                           OnClick="@(() => NavigateToSites(context.Item.Id))"
+                                           aria-label="Siteler" />
+                        </HasPermission>
+                    </MudTooltip>
                 </CellTemplate>
             </TemplateColumn>
         </Columns>
@@ -160,7 +152,7 @@
 @code {
     private SiteHubDataGrid<OrganizationListItemDto>? _grid;
     private string? _search;
-    private bool _onlyActive = true;   // Default: sadece aktif kayıtlar
+    private bool _onlyActive = true;
 
     private async Task<GridData<OrganizationListItemDto>> LoadServerData(
         GridState<OrganizationListItemDto> state, CancellationToken ct)
@@ -171,7 +163,7 @@
                 page: state.Page + 1,
                 pageSize: state.PageSize,
                 search: string.IsNullOrWhiteSpace(_search) ? null : _search,
-                includeInactive: !_onlyActive,  // switch AÇIK = sadece aktif
+                includeInactive: !_onlyActive,
                 ct: ct);
 
             return new GridData<OrganizationListItemDto>

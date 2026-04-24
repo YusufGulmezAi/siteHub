@@ -32,7 +32,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<PageTitle>@(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon") — SiteHub</PageTitle>
+<PageTitle>@(_isEditMode ? (_loadedDetail is not null ? $"Yönetim Firması — {_loadedDetail.Code}" : "Yönetim Firması") : "Yeni Yönetim Firması") — SiteHub</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
 
@@ -51,18 +51,25 @@
         </MudText>
     </MudStack>
 
-    @* Başlık + alt metin *@
+    @* F.6 Kategori A Madde 7: Başlık "Organizasyon Düzenle" kaldırıldı.
+       Kod'u h5 olarak göster. Create mode'da başlık "Yeni Organizasyon" kalır. *@
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
         <div>
-            <MudText Typo="Typo.h5" Style="font-weight:600">
-                @(_isEditMode ? "Organizasyon Düzenle" : "Yeni Organizasyon")
-            </MudText>
-            @if (_isEditMode && _loadedDetail is not null)
+            @if (_isEditMode)
             {
-                <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
-                    Kod: @_loadedDetail.Code
-                    · Oluşturma: @_loadedDetail.CreatedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm")
-                </MudText>
+                @if (_loadedDetail is not null)
+                {
+                    <MudText Typo="Typo.h5" Style="font-weight:600">
+                        Kod: @_loadedDetail.Code
+                    </MudText>
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
+                        Oluşturma: @_loadedDetail.CreatedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm")
+                    </MudText>
+                }
+            }
+            else
+            {
+                <MudText Typo="Typo.h5" Style="font-weight:600">Yeni Organizasyon</MudText>
             }
         </div>
     </MudStack>
@@ -381,7 +388,7 @@
         var digits = new string(phone.Where(char.IsDigit).ToArray());
 
         if (digits.Length != 11)
-            return "Telefon 11 haneli olmalı (0 ile başlayan 11 rakam).";
+            return "Telefon 11 haneli olmalı (05 ile başlayan 11 rakam).";
 
         if (!digits.StartsWith("05", StringComparison.Ordinal))
             return "Telefon 05 ile başlamalı (cep telefonu).";

@@ -4,9 +4,13 @@
     Route: /organizations/{OrganizationId}/sites
 
     F.6 Madde 3:
-      - İşlemler kolonu (göz + kalem) KALDIRILDI
+      - İşlemler kolonu (göz + kalem) kaldırıldı
       - Satıra tıklayınca /organizations/{orgId}/sites/{siteId} → Detail (Edit mode)
-      - "+ Yeni Site" butonu /sites/new → Detail (Create mode)
+
+    F.6 Kategori A (Madde A-b):
+      - Aktif/Pasif switch tablonun üst toolbar'ında — önceki konumdan (MudPaper
+        içindeki ayrı stack) alınıp MudDataGrid'in kendi ToolBarContent slot'una
+        konuldu. Dişli ikonu otomatik olarak switch'in sağında kalıyor.
 *@
 @page "/organizations/{OrganizationId:guid}/sites"
 @rendermode InteractiveServer
@@ -78,7 +82,7 @@ else
 
     <MudPaper Elevation="1" Class="pa-4">
 
-        @* Toolbar *@
+        @* Arama — DataGrid toolbar'ından ayrı kalıyor (header'ın üstünde) *@
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
             <MudTextField T="string"
                           Value="_search"
@@ -92,20 +96,20 @@ else
                           Immediate="true"
                           Clearable="true"
                           Style="max-width:420px" />
-
-            <MudSpacer />
-
-            <MudSwitch T="bool" @bind-Value="_onlyActive"
-                       @bind-Value:after="RefreshAsync"
-                       Color="Color.Primary"
-                       Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
         </MudStack>
 
-        @* Tablo — satıra tıklanabilir (OnRowClick callback) *@
+        @* Tablo — ToolBarContent slot'unda Aktif/Pasif switch (dişlinin solunda) *@
         <SiteHubDataGrid T="SiteListItemDto"
                          ServerData="LoadServerData"
                          OnRowClick="OnRowClick"
                          @ref="_grid">
+            <ToolBarContent>
+                <MudSwitch T="bool" @bind-Value="_onlyActive"
+                           @bind-Value:after="RefreshAsync"
+                           Color="Color.Primary"
+                           Label="@(_onlyActive ? "Aktif" : "Hepsi")" />
+                <MudSpacer />
+            </ToolBarContent>
             <Columns>
                 <PropertyColumn Property="x => x.Code" Title="Kod" />
                 <PropertyColumn Property="x => x.Name" Title="Ad" />

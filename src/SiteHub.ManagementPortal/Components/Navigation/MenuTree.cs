@@ -14,24 +14,17 @@ using MudBlazor;
 ///
 /// <para>Hesap ve güvenlik ayarları sol menüde değil — sağ üst avatar menüsündedir
 /// (<c>MainLayout.razor</c>).</para>
+///
+/// <para><b>F.6 Kategori A (Madde 4):</b> "Tenant Yönetimi" parent grubu kaldırıldı.
+/// "Siteler" de kaldırıldı — siteler zaten Organization altında nested (listeye
+/// /organizations/{id}/sites üzerinden erişiliyor). "Organizasyonlar" menü ismi
+/// "Yönetim Firmaları" olarak güncellendi.</para>
 /// </summary>
 public static class MenuTree
 {
     public static readonly IReadOnlyList<MenuItem> Items =
     [
-        new() { Title = "Ana Sayfa", Href = "/", Icon = Icons.Material.Filled.Dashboard },
-
-        new()
-        {
-            Title = "Tenant Yönetimi",
-            Icon = Icons.Material.Filled.AccountTree,
-            Children =
-            [
-                new() { Title = "Organizasyonlar", Href = "/organizations",
-                        Icon = Icons.Material.Filled.Business },
-                new() { Title = "Siteler", Href = "/sites",
-                        Icon = Icons.Material.Filled.Apartment },
-            ]
-        },
+        new() { Title = "Yönetim Firmaları", Href = "/organizations",
+                Icon = Icons.Material.Filled.Business },
     ];
 }
