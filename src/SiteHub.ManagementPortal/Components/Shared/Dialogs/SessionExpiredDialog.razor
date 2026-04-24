@@ -1,0 +1,113 @@
+@*
+    SessionExpiredDialog.razor — 401 sonrası oturum sonlandı dialog'u (F.6 Madde 9).
+
+    Davranış:
+      - Açılır açılmaz 5 saniye countdown başlar
+      - Her saniye başında progress bar ilerler + sayı düşer
+      - Countdown bittiğinde veya "Giriş Ekranına Git" butonuna tıklandığında
+        dialog kapanır ve /auth/login'e force redirect yapılır
+      - Kullanıcı ESC veya arka plan tıklayamaz (DisableBackdropClick + NoHeader yok)
+
+    Layout'tan çağrı:
+        await DialogService.ShowAsync<SessionExpiredDialog>("",
+            new DialogOptions { BackdropClick = false, CloseOnEscapeKey = false });
+
+    Dialog otomatik kapandığı için Result'a bakmaya gerek yok.
+*@
+
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager Nav
+@implements IDisposable
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning"
+                     Color="Color.Warning"
+                     Size="Size.Large" />
+            <MudText Typo="Typo.h6">Oturumunuz Sona Erdi</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-3">
+            Güvenlik nedeniyle oturumunuz sonlandırılmıştır. Çalışmanıza devam
+            edebilmek için tekrar giriş yapmanız gerekiyor.
+        </MudText>
+
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);" Class="mb-2">
+            @_secondsRemaining saniye sonra giriş ekranına yönlendirileceksiniz...
+        </MudText>
+
+        <MudProgressLinear Color="Color.Warning"
+                           Value="@_progressValue"
+                           Class="my-2"
+                           Rounded="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Login"
+                   OnClick="RedirectNow">
+            Giriş Ekranına Git
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const int CountdownSeconds = 5;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private int _secondsRemaining = CountdownSeconds;
+    private double _progressValue = 100;
+    private System.Timers.Timer? _timer;
+    private bool _redirected;
+
+    protected override void OnInitialized()
+    {
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += OnTimerElapsed;
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    private async void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        _secondsRemaining--;
+        _progressValue = (double)_secondsRemaining / CountdownSeconds * 100;
+
+        if (_secondsRemaining <= 0)
+        {
+            StopTimer();
+            await InvokeAsync(RedirectNow);
+        }
+        else
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void RedirectNow()
+    {
+        if (_redirected) return;
+        _redirected = true;
+
+        StopTimer();
+        MudDialog.Close(DialogResult.Ok(true));
+
+        // forceLoad: true → browser tam reload yapar, Blazor circuit'i sıfırlanır
+        // (session state temizlenir, yeni login temiz başlar)
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void StopTimer()
+    {
+        if (_timer is null) return;
+        _timer.Stop();
+        _timer.Elapsed -= OnTimerElapsed;
+        _timer.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose() => StopTimer();
+}

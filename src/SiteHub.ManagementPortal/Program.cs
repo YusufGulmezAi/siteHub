@@ -86,6 +86,11 @@ try
     builder.Services.AddScoped<SiteHub.Application.Abstractions.Authorization.ICurrentUserPermissionService,
         SiteHub.ManagementPortal.Services.Authorization.CurrentUserPermissionService>();
 
+// ─── F.6 Madde 9: Global 401 handler + event service ──────────────
+    builder.Services.AddSingleton<SiteHub.ManagementPortal.Services.Authentication.IAuthenticationEventService,
+        SiteHub.ManagementPortal.Services.Authentication.AuthenticationEventService>();
+    builder.Services.AddTransient<SiteHub.ManagementPortal.Services.Api.UnauthorizedResponseHandler>();
+
     // ─── Demo Services (ileride backend'e bağlanacak) ────────────────────────
     builder.Services.AddSingleton<SiteHub.ManagementPortal.Services.Contexts.DemoContextService>();
 
@@ -110,21 +115,24 @@ try
         {
             client.BaseAddress = new Uri(apiBaseAddress);
         })
-        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>();
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>()
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.UnauthorizedResponseHandler>();
 
     builder.Services.AddHttpClient<SiteHub.ManagementPortal.Services.Api.ISitesApi,
                                    SiteHub.ManagementPortal.Services.Api.SitesApi>(client =>
         {
             client.BaseAddress = new Uri(apiBaseAddress);
         })
-        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>();
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>()
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.UnauthorizedResponseHandler>();
 
     builder.Services.AddHttpClient<SiteHub.ManagementPortal.Services.Api.IOrganizationsApi,
                                    SiteHub.ManagementPortal.Services.Api.OrganizationsApi>(client =>
         {
             client.BaseAddress = new Uri(apiBaseAddress);
         })
-        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>();
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.CookieForwardingHandler>()
+        .AddHttpMessageHandler<SiteHub.ManagementPortal.Services.Api.UnauthorizedResponseHandler>();
 
     // TODO (sonraki adımlar):
     //   - builder.Services.AddSingleton(TimeProvider.System);

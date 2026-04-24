@@ -1,8 +1,12 @@
 @* MainLayout.razor — AdminLTE-inspired dark sidebar layout *@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IDialogService DialogService
+@inject IHttpContextAccessor HttpContextAccessor
 @inject SiteHub.Application.Abstractions.Context.ICurrentUser CurrentUser
+@inject SiteHub.ManagementPortal.Services.Authentication.IAuthenticationEventService AuthEvents
 
 <MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
 <MudPopoverProvider />
@@ -36,7 +40,7 @@
                 OnClick="@(() => _isDarkMode = !_isDarkMode)" />
         </MudTooltip>
 
-        @* Avatar + manuel dropdown (MudMenu yerine MudPopover — v9'da MudMenu Blazor Server'da sorunlu) *@
+        @* Avatar + manuel dropdown *@
         <div class="user-menu-wrapper">
             <MudAvatar Color="Color.Primary"
                        Size="Size.Small"
@@ -80,7 +84,6 @@
             </MudPopover>
         </div>
 
-        @* Menu d\u0131\u015f\u0131na t\u0131klan\u0131nca kapans\u0131n *@
         @if (_userMenuOpen)
         {
             <MudOverlay Visible="true"
@@ -90,7 +93,7 @@
         }
     </MudAppBar>
 
-    @* ─── LEFT DRAWER (koyu sidebar, AdminLTE tarzı) ─────────── *@
+    @* ─── LEFT DRAWER ───────────────────────────── *@
     <MudDrawer
         @bind-Open="_drawerOpen"
         ClipMode="DrawerClipMode.Always"
@@ -114,7 +117,7 @@
         </div>
     </MudDrawer>
 
-    @* ─── MAIN CONTENT ─────────────────────────────────────────── *@
+    @* ─── MAIN CONTENT ────────────────────────── *@
     <MudMainContent Class="sitehub-main">
         <MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
             @Body
@@ -124,31 +127,38 @@
 </MudLayout>
 
 @code {
+    // Auth cookie adı (UnauthorizedResponseHandler ile aynı sabit)
+    private const string AuthCookieName = ".SiteHub.Mgmt";
+
     private bool _drawerOpen = true;
     private bool _isDarkMode;
-    private bool _userMenuOpen;  // Avatar dropdown state
+    private bool _userMenuOpen;
 
-    // SiteHub resmi palet — lacivert base + canlı accent (kurumsal / finansal ton)
-    // Değişiklik tek yerde: tüm portal genel teması, SiteHubDataGrid header, butonlar,
-    // stat kartlar (Home.razor Color.Primary/Success/Warning/Error enum'ları kullanır)
+    // F.6 Madde 9 — bu circuit'in session identifier'ı (kendi auth cookie değeri)
+    // HTTP request'ten bir kez okunur, event filter'da kullanılır
+    private string? _mySessionIdentifier;
+
+    // Dialog tek-kez açılmalı (defensive flag — event service zaten garanti veriyor)
+    private bool _sessionExpiredHandled;
+
     private readonly MudTheme _theme = new()
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#1E3A8A",          // Lacivert — ana renk
-            Secondary = "#0EA5E9",        // Canlı mavi — hover, link, info
-            Tertiary = "#F59E0B",         // Amber — önemli CTA, highlight
-            Success = "#10B981",          // Zümrüt — aktif, onaylı
-            Info = "#3B82F6",             // Mavi — bilgi
-            Warning = "#F59E0B",          // Amber — uyarı
-            Error = "#EF4444",            // Kırmızı — pasif/silinmiş, hata
+            Primary = "#1E3A8A",
+            Secondary = "#0EA5E9",
+            Tertiary = "#F59E0B",
+            Success = "#10B981",
+            Info = "#3B82F6",
+            Warning = "#F59E0B",
+            Error = "#EF4444",
 
             AppbarBackground = "#FFFFFF",
-            AppbarText = "#1E293B",       // Koyu lacivert metin
-            DrawerBackground = "#172554", // Derin navy sidebar (blue-950)
-            DrawerText = "#E0E7FF",       // Indigo-100 — okunaklı açık mavi-beyaz
-            DrawerIcon = "#A5B4FC",       // Indigo-300 — açık mavi ikonlar
-            Background = "#F8FAFC",       // Açık gri sayfa zemini
+            AppbarText = "#1E293B",
+            DrawerBackground = "#172554",
+            DrawerText = "#E0E7FF",
+            DrawerIcon = "#A5B4FC",
+            Background = "#F8FAFC",
             Surface = "#FFFFFF",
             TextPrimary = "#1E293B",
             TextSecondary = "#64748B",
@@ -156,8 +166,8 @@
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#3B82F6",          // Daha parlak lacivert-mavi
-            Secondary = "#06B6D4",        // Cyan
+            Primary = "#3B82F6",
+            Secondary = "#06B6D4",
             Tertiary = "#F59E0B",
             Success = "#10B981",
             Info = "#60A5FA",
@@ -166,7 +176,7 @@
 
             AppbarBackground = "#0F172A",
             AppbarText = "#F1F5F9",
-            DrawerBackground = "#0C1433", // Daha koyu navy (light mode'un koyu versiyonu)
+            DrawerBackground = "#0C1433",
             DrawerText = "#E0E7FF",
             DrawerIcon = "#A5B4FC",
             Background = "#0F172A",
@@ -176,9 +186,7 @@
     };
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
-
     private void ToggleUserMenu() => _userMenuOpen = !_userMenuOpen;
-
     private void CloseUserMenu() => _userMenuOpen = false;
 
     private void NavigateToTwoFactor()
@@ -189,19 +197,56 @@
 
     protected override void OnInitialized()
     {
-        // Unauthenticated kullan\u0131c\u0131y\u0131 login'e yönlendir.
-        // Normalde SessionValidationMiddleware bunu yap\u0131yor, ama ilk render'da
-        // henüz middleware devreye girmemi\u015f olabilir — bu ikincil bir koruma.
+        // F.6 Madde 9 — kendi session identifier'ımızı cookie'den oku (sadece HTTP
+        // initial request'te HttpContext dolu; SignalR event'lerinde boş). Initial render'da
+        // kaydedip circuit boyunca tutuyoruz.
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext?.Request.Cookies.TryGetValue(AuthCookieName, out var cookieValue) == true)
+        {
+            _mySessionIdentifier = cookieValue;
+        }
+
+        // SessionExpired event'ine subscribe ol (Singleton — tüm circuit'ler aynı event'i dinler)
+        AuthEvents.SessionExpired += OnSessionExpiredAsync;
+
+        // Unauthenticated ise direkt login'e
         if (!CurrentUser.IsAuthenticated)
         {
             Nav.NavigateTo("/login", forceLoad: false);
         }
     }
 
+    /// <summary>
+    /// Herhangi bir circuit'in session'ı expire olduğunda tüm subscriber'lar bu event'i alır.
+    /// Sadece bizim session'a ait ise dialog göster; diğer kullanıcıların 401'ine karışma.
+    /// </summary>
+    private async Task OnSessionExpiredAsync(SiteHub.ManagementPortal.Services.Authentication.SessionExpiredEventArgs e)
+    {
+        // Farklı bir kullanıcının 401'i — bize ait değil, yoksay
+        if (!string.Equals(e.SessionIdentifier, _mySessionIdentifier, StringComparison.Ordinal))
+            return;
+
+        if (_sessionExpiredHandled) return;
+        _sessionExpiredHandled = true;
+
+        await InvokeAsync(async () =>
+        {
+            var options = new DialogOptions
+            {
+                BackdropClick = false,
+                CloseOnEscapeKey = false,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            };
+
+            await DialogService.ShowAsync<SiteHub.ManagementPortal.Components.Shared.Dialogs.SessionExpiredDialog>(
+                title: "",
+                options: options);
+        });
+    }
+
     private void OnContextChanged(Services.Contexts.ContextItem ctx)
     {
-        // İleride: URL'yi /c/{type}/{id}/... yap, menüleri permission'a göre yenile,
-        // active context state'i güncelle, ilgili dashboard'a git.
         Nav.NavigateTo("/", forceLoad: false);
     }
 
@@ -209,17 +254,18 @@
     {
         _userMenuOpen = false;
 
-        // /auth/logout endpoint'ini fetch ile çağır — session Redis'ten silinir,
-        // cookie'ler sunucu tarafından silinir. Sonrasında login sayfasına tam redirect.
         try
         {
             await JS.InvokeVoidAsync("sitehubAuth.logout");
         }
-        catch
-        {
-            // Logout best-effort — hata olsa bile login'e yönlendir.
-        }
+        catch { /* best-effort */ }
 
         Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthEvents.SessionExpired -= OnSessionExpiredAsync;
+        await Task.CompletedTask;
     }
 }
